@@ -79,22 +79,20 @@ describe("arcade", () => {
 
   // Deleting the most recent game in the arcade without permission should have a test, but it currently works well
 
-  // TODO: FIX THE BELOW TEST
-  // it("Deletes a Specified Game in the Arcade", async () => {
-  //   // Create an arcade
-  //   const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
+  it("Deletes a Specified Game in the Arcade", async () => {
+    // Create an arcade
+    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
 
-  //   // Create 3 games for the arcade
-  //   const { gameAccount: gameAccount1 } = await makeGame(program, provider, arcadeAccount, genesisGameAccount);
-  //   const { gameAccount: gameAccount2 } = await makeGame(program, provider, arcadeAccount, gameAccount1);
-  //   const { gameAccount: gameAccount3 } = await makeGame(program, provider, arcadeAccount, gameAccount2);
+    // Create 3 games for the arcade
+    const { gameAccount: gameAccount1 } = await makeGame(program, provider, arcadeAccount, genesisGameAccount);
+    const { gameAccount: gameAccount2 } = await makeGame(program, provider, arcadeAccount, gameAccount1);
+    const { gameAccount: gameAccount3 } = await makeGame(program, provider, arcadeAccount, gameAccount2);
 
-  //   const { updatedEarlierGame: updatedGameAccount1, updatedLaterGame: updatedGameAccount3 } = await deleteGame(program, provider, gameAccount2, gameAccount3, gameAccount1);
+    const { updatedEarlierGame, updatedLaterGame } = await deleteGame(program, provider, gameAccount2, gameAccount3, gameAccount1);
 
-  //   assert.equal(updatedGameAccount1.earlierGameKey.toString(), gameAccount3.publicKey.toString());
-
-  //   assert.equal(updatedGameAccount3.laterGameKey.toString(), gameAccount1.publicKey.toString());
-  // });
+    assert.equal(updatedEarlierGame.laterGameKey.toString(), gameAccount1.publicKey.toString());
+    assert.equal(updatedLaterGame.earlierGameKey.toString(), gameAccount3.publicKey.toString());
+  });
 
   // TODO: FIX THE BELOW TEST
   // it("Updates the game leaderboard", async () => {
