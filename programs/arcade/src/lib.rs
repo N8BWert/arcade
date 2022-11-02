@@ -161,35 +161,14 @@ pub mod arcade {
 
     pub fn initialize_game_queue(ctx: Context<InitGameQueue>) -> Result<()> {
         let game_queue_account = &mut ctx.accounts.game_queue_account;
-        let game_account = &mut ctx.accounts.game_account;
-
-        if game_account.game_queue != None {
-            return Err(Errors::AlreadyInitializedGameQueue.into());
-        }
-
-        game_account.game_queue = Some(game_queue_account.key());
-
-        game_queue_account.game = game_account.key();
-        game_queue_account.next_player = None;
-        game_queue_account.last_player = None;
-
-        Ok(())
-    }
-
-    pub fn join_empty_game_queue(ctx: Context<PlayGameEmptyQueue>) -> Result<()> {
         let player_account = &mut ctx.accounts.player_account;
         let game_account = &mut ctx.accounts.game_account;
-        let game_queue_account = &mut ctx.accounts.game_queue_account;
         let payer = &mut ctx.accounts.payer;
-
-        if game_queue_account.last_player != None {
-            return Err(Errors::GameQueueNotEmpty.into());
-        }
 
         // TODO: find a way to test actual transactions
         // let ix = anchor_lang::solana_program::system_instruction::transfer(
         //     &payer.key(),
-        //     &game_account.game_wallet,
+        //     &game_account.key(),
         //     TWENTY_FIVE_CENTS,
         // );
 
@@ -204,8 +183,11 @@ pub mod arcade {
         player_account.wallet_key = payer.key();
         player_account.next_player = None;
 
+        game_queue_account.game = game_account.key();
         game_queue_account.next_player = Some(player_account.key());
         game_queue_account.last_player = Some(player_account.key());
+
+        game_account.game_queue = Some(game_queue_account.key());
 
         Ok(())
     }
@@ -223,7 +205,7 @@ pub mod arcade {
         // TODO: find a way to test actual transactions.
         // let ix = anchor_lang::solana_program::system_instruction::transfer(
         //     &payer.key(),
-        //     &game_account.game_wallet,
+        //     &game_account.key(),
         //     TWENTY_FIVE_CENTS,
         // );
 
@@ -242,6 +224,19 @@ pub mod arcade {
 
         game_queue_account.last_player = Some(player_account.key());
 
+        Ok(())
+    }
+
+    pub fn advance_game_queue(ctx: Context<AdvanceGameQueue>) -> ProgramResult {
+        let next_player = &mut ctx.accounts.next_player;
+        let game_queue_account = &mut ctx.accounts.game_queue_account;
+
+        game_queue_account.next_player = Some(next_player.key());
+
+        Ok(())
+    }
+
+    pub fn finish_game_queue(_ctx: Context<FinishGameQueue>) -> ProgramResult {
         Ok(())
     }
 
@@ -360,19 +355,6 @@ pub struct PlayGame<'info> {
 }
 
 #[derive(Accounts)]
-pub struct PlayGameEmptyQueue<'info> {
-    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
-    pub player_account: Account<'info, Player>,
-    #[account(mut, constraint = game_account.game_queue.unwrap() == game_queue_account.key())]
-    pub game_account: Account<'info, Game>,
-    #[account(mut, constraint = game_queue_account.game == game_account.key())]
-    pub game_queue_account: Account<'info, GameQueue>,
-    #[account(mut)]
-    pub payer: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
 pub struct GameEnd<'info> {
     #[account(mut)]
     pub game_account: Account<'info, Game>,
@@ -382,11 +364,52 @@ pub struct GameEnd<'info> {
 
 #[derive(Accounts)]
 pub struct InitGameQueue<'info> {
-    #[account(init, payer = authority, space = 8 + GameQueue::MAX_SIZE)]
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
     pub game_queue_account: Account<'info, GameQueue>,
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(mut, constraint = game_account.game_queue == None)]
+    pub game_account: Account<'info, Game>,
     #[account(mut)]
-    game_account: Account<'info, Game>,
-    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+// TODO: This transfer of credits might not actually be what I want please check later.
+// My intention is that the 25 cents of solana go into the player's account, which are then transferred into the game account when the player
+// looses.  Or possibly the transfer happens earlier (not sure just check this).
+#[derive(Accounts)]
+pub struct AdvanceGameQueue<'info> {
+    #[account(mut,
+        close = game_account,
+        constraint = game_queue_account.next_player.unwrap() == current_player.key()
+    )]
+    pub current_player: Account<'info, Player>,
+    #[account(mut, constraint = current_player.next_player.unwrap() == next_player.key())]
+    pub next_player: Account<'info, Player>,
+    #[account(mut, constraint = game_queue_account.key() == game_account.game_queue.unwrap())]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(mut, constraint = game_account.key() == game_queue_account.game)]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinishGameQueue<'info> {
+    #[account(mut,
+        close = game_account,
+        constraint = game_queue_account.next_player.unwrap() == current_player.key()
+    )]
+    pub current_player: Account<'info, Player>,
+    #[account(mut,
+        close = game_account,
+        constraint = game_queue_account.key() == game_account.game_queue.unwrap(),
+        constraint = game_queue_account.last_player.unwrap() == current_player.key()
+    )]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(mut, constraint = game_account.key() == game_queue_account.game)]
+    pub game_account: Account<'info, Game>,
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
