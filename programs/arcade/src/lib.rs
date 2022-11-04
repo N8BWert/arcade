@@ -49,11 +49,12 @@ pub mod arcade {
     /// are to be added to the arcade.  Then I need to pass that wallet address into here to ensure the games
     /// get their money.
     pub fn create_game(
-        ctx: Context<GamePost>,
+        ctx: Context<MakeGame>,
         title: String,
         web_gl_hash: String,
         game_art_hash: String,
-        game_wallet: Pubkey
+        game_wallet: Pubkey,
+        num_players: u8
     ) -> ProgramResult {
         // Get accounts from the context
         let game_account = &mut ctx.accounts.game_account;
@@ -67,10 +68,9 @@ pub mod arcade {
         game_account.game_art_hash = game_art_hash;
 
         // TODO: figure out how to link this game_wallet and the web gl account wallet.
-        game_account.game_wallet = game_wallet;
         game_account.owner_wallet = owner.key();
-        game_account.later_game_key = arcade_account.most_recent_game_key;
-        game_account.earlier_game_key = game_account.key();
+        game_account.older_game_key = arcade_account.most_recent_game_key;
+        game_account.younger_game_key = game_account.key();
 
         // Initialize leaderboard
         let first_place = Place {name: String::from("AAA"), wallet_key: game_wallet, score: 100};
@@ -81,20 +81,18 @@ pub mod arcade {
 
         game_account.leaderboard = leaderboard;
 
-        game_account.game_queue = None;
-
         // Store most recent game key as current game key in arcade account.
         arcade_account.most_recent_game_key = game_account.key();
 
         // TODO: connect past most_recent_game_key to the new game
-        most_recent_game_account.earlier_game_key = game_account.key();
+        most_recent_game_account.younger_game_key = game_account.key();
 
         // Emit the game created event.
         emit!(GameEvent {
             label: "CREATE".to_string(),
             game_id: game_account.key(),
             more_recent_game_id: None,
-            less_recent_game_id: Some(game_account.later_game_key),
+            less_recent_game_id: Some(game_account.older_game_key),
         });
 
         Ok(())
@@ -105,23 +103,17 @@ pub mod arcade {
     /// may come back to bite me, but I think this is the best way to promote an open space.
     pub fn delete_game(ctx: Context<DeleteGame>) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
-        let earlier_game = &mut ctx.accounts.earlier_game;
-        let later_game = &mut ctx.accounts.later_game;
+        let younger_game = &mut ctx.accounts.younger_game;
+        let older_game = &mut ctx.accounts.older_game;
 
-        // Check that the signer is the same as the owner (I'm not sure that this is necessary,
-        // but I don't want to leave this up to chance).
-        if game_account.owner_wallet != ctx.accounts.owner_wallet.key() {
-            return Err(Errors::CannotDeleteUnownedGame.into());
-        }
-
-        earlier_game.later_game_key = later_game.key();
-        later_game.earlier_game_key = earlier_game.key();
+        younger_game.older_game_key = older_game.key();
+        older_game.younger_game_key = younger_game.key();
 
         emit!(GameEvent {
             label: "DELETE".to_string(),
             game_id: game_account.key(),
-            more_recent_game_id: Some(earlier_game.key()),
-            less_recent_game_id: Some(later_game.key()),
+            more_recent_game_id: Some(younger_game.key()),
+            less_recent_game_id: Some(older_game.key()),
         });
 
         Ok(())
@@ -133,27 +125,18 @@ pub mod arcade {
     /// circular linked list, but this is here for now.
     pub fn delete_most_recent_game(ctx: Context<DeleteMostRecentGame>) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
-        let later_game = &mut ctx.accounts.later_game;
+        let older_game = &mut ctx.accounts.older_game;
         let arcade_state = &mut ctx.accounts.arcade_state;
 
-        // Check that the signer is the same as the owner (I'm not sure that this is necessary,
-        // but I don't want to leave this up to chance).
-        if game_account.owner_wallet != ctx.accounts.owner_wallet.key() {
-            return Err(Errors::CannotDeleteUnownedGame.into());
-        }
+        older_game.younger_game_key = older_game.key();
 
-        // TODO: fix this, for now we're going to say a game without an earlier game has the earlier
-        // game of itself.  I might make this that the front game refers to the last game to make a 
-        // circular linked list, but I'm not sure.
-        later_game.earlier_game_key = later_game.key();
-
-        arcade_state.most_recent_game_key = later_game.key();
+        arcade_state.most_recent_game_key = older_game.key();
 
         emit!(GameEvent {
             label: "DELETE".to_string(),
             game_id: game_account.key(),
             more_recent_game_id: None,
-            less_recent_game_id: Some(later_game.key()),
+            less_recent_game_id: Some(older_game.key()),
         });
 
         Ok(())
@@ -165,71 +148,131 @@ pub mod arcade {
         let game_account = &mut ctx.accounts.game_account;
         let payer = &mut ctx.accounts.payer;
 
-        let ix = anchor_lang::solana_program::system_instruction::transfer(
-            &payer.key(),
-            &game_account.key(),
-            TWENTY_FIVE_CENTS,
-        );
+        for i in 0..(game_account.max_players as usize) {
+            if game_account.game_queues.get(i) == None {
+                let ix = anchor_lang::solana_program::system_instruction::transfer(
+                    &payer.key(),
+                    &game_account.key(),
+                    TWENTY_FIVE_CENTS,
+                );
 
-        anchor_lang::solana_program::program::invoke(
-            &ix,
-            &[
-                payer.to_account_info(),
-                game_account.to_account_info(),
-            ],
-        )?;
+                anchor_lang::solana_program::program::invoke(
+                    &ix,
+                    &[
+                        payer.to_account_info(),
+                        game_account.to_account_info(),
+                    ],
+                )?;
 
-        player_account.wallet_key = payer.key();
-        player_account.next_player = None;
+                player_account.wallet_key = payer.key();
+                player_account.next_player = None;
 
-        game_queue_account.game = game_account.key();
-        game_queue_account.next_player = Some(player_account.key());
-        game_queue_account.last_player = Some(player_account.key());
+                game_queue_account.game = game_account.key();
+                game_queue_account.current_player = player_account.key();
+                game_queue_account.last_player = player_account.key();
 
-        game_account.game_queue = Some(game_queue_account.key());
+                game_account.game_queues.push(game_queue_account.key());
 
-        Ok(())
+                return Ok(());
+            }
+        }
+
+        Err(Errors::AlreadyInitializedGameQueue.into())
     }
 
     /// This function will be called by the webgl program to allow users to enter the game queue
     /// 
     /// Note: This code probably doesn't work so we'll need to test this a bit
-    pub fn join_game_queue(ctx: Context<PlayGame>) -> ProgramResult {
+    pub fn join_game_queue(ctx: Context<JoinGameQueue>) -> Result<()> {
         let player_account = &mut ctx.accounts.player_account;
         let game_account = &mut ctx.accounts.game_account;
         let game_queue_account = &mut ctx.accounts.game_queue_account;
         let last_player = &mut ctx.accounts.last_player;
         let payer = &mut ctx.accounts.payer;
 
-        let ix = anchor_lang::solana_program::system_instruction::transfer(
-            &payer.key(),
-            &game_account.key(),
-            TWENTY_FIVE_CENTS,
-        );
+        if let Some(queue) = game_account.game_queues.get(game_account.next_queue_addition_idx as usize) {
+            if queue.key() == game_queue_account.key() {
+                let ix = anchor_lang::solana_program::system_instruction::transfer(
+                    &payer.key(),
+                    &game_account.key(),
+                    TWENTY_FIVE_CENTS,
+                );
 
-        anchor_lang::solana_program::program::invoke(
-            &ix,
-            &[
-                payer.to_account_info(),
-                game_account.to_account_info(),
-            ],
-        )?;
+                anchor_lang::solana_program::program::invoke(
+                    &ix,
+                    &[
+                        payer.to_account_info(),
+                        game_account.to_account_info(),
+                    ],
+                )?;
 
-        player_account.wallet_key = payer.key();
-        player_account.next_player = None;
+                player_account.wallet_key = payer.key();
+                player_account.next_player = None;
 
-        last_player.next_player = Some(player_account.key());
+                last_player.next_player = Some(player_account.key());
 
-        game_queue_account.last_player = Some(player_account.key());
+                game_queue_account.last_player = player_account.key();
+
+                return Ok(());
+            } else {
+                // TODO: Make this error message better
+                return Err(Errors::GameQueueDoesNotExist.into());
+            }
+        }
+
+        return Err(Errors::GameQueueDoesNotExist.into());
+    }
+
+    pub fn advance_one_player_game_queue(ctx: Context<AdvanceOnePlayerGameQueue>) -> ProgramResult {
+        let next_player = &mut ctx.accounts.next_player;
+        let game_queue_account = &mut ctx.accounts.game_queue_account;
+
+        game_queue_account.current_player = next_player.key();
 
         Ok(())
     }
 
-    pub fn advance_game_queue(ctx: Context<AdvanceGameQueue>) -> ProgramResult {
-        let next_player = &mut ctx.accounts.next_player;
-        let game_queue_account = &mut ctx.accounts.game_queue_account;
+    pub fn advance_two_player_game_queue(ctx: Context<AdvanceTwoPlayerGameQueue>) -> ProgramResult {
+        let next_player_1 = &mut ctx.accounts.next_player_one;
+        let next_player_2 = &mut ctx.accounts.next_player_two;
+        let game_queue_account_1 = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_2 = &mut ctx.accounts.game_queue_account_two;
 
-        game_queue_account.next_player = Some(next_player.key());
+        game_queue_account_1.current_player = next_player_1.key();
+        game_queue_account_2.current_player = next_player_2.key();
+
+        Ok(())
+    }
+
+    pub fn advance_three_player_game_queue(ctx: Context<AdvanceThreePlayerGameQueue>) -> ProgramResult {
+        let next_player_1 = &mut ctx.accounts.next_player_one;
+        let next_player_2 = &mut ctx.accounts.next_player_two;
+        let next_player_3 = &mut ctx.accounts.next_player_three;
+        let game_queue_account_1 = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_2 = &mut ctx.accounts.game_queue_account_two;
+        let game_queue_account_3 = &mut ctx.accounts.game_queue_account_three;
+
+        game_queue_account_1.current_player = next_player_1.key();
+        game_queue_account_2.current_player = next_player_2.key();
+        game_queue_account_3.current_player = next_player_3.key();
+
+        Ok(())
+    }
+
+    pub fn advance_four_player_game_queue(ctx: Context<AdvanceFourPlayerGameQueue>) -> ProgramResult {
+        let next_player_1 = &mut ctx.accounts.next_player_one;
+        let next_player_2 = &mut ctx.accounts.next_player_two;
+        let next_player_3 = &mut ctx.accounts.next_player_three;
+        let next_player_4 = &mut ctx.accounts.next_player_four;
+        let game_queue_account_1 = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_2 = &mut ctx.accounts.game_queue_account_two;
+        let game_queue_account_3 = &mut ctx.accounts.game_queue_account_three;
+        let game_queue_account_4 = &mut ctx.accounts.game_queue_account_four;
+
+        game_queue_account_1.current_player = next_player_1.key();
+        game_queue_account_2.current_player = next_player_2.key();
+        game_queue_account_3.current_player = next_player_3.key();
+        game_queue_account_4.current_player = next_player_4.key();
 
         Ok(())
     }
@@ -290,7 +333,7 @@ pub struct InitArcade<'info> {
 
 #[derive(Accounts)]
 /// Context used to create a new game.
-pub struct GamePost<'info> {
+pub struct MakeGame<'info> {
     #[account(init, payer = owner, space = 8 + Game::MAX_SIZE)]
     pub game_account: Account<'info, Game>,
     #[account(mut)]
@@ -306,17 +349,18 @@ pub struct GamePost<'info> {
 pub struct DeleteGame<'info> {
     #[account(
         mut,
-        has_one = owner_wallet,
-        close = owner_wallet,
-        constraint = game_account.key() == earlier_game.later_game_key,
-        constraint = game_account.key() == later_game.earlier_game_key,
+        close = owner,
+        constraint = game_account.key() == younger_game.older_game_key,
+        constraint = game_account.key() == older_game.younger_game_key,
+        constraint = game_account.owner_wallet == owner.key(),
     )]
     pub game_account: Box<Account<'info, Game>>,
     #[account(mut)]
-    pub earlier_game: Account<'info, Game>,
+    pub younger_game: Account<'info, Game>,
     #[account(mut)]
-    pub later_game: Account<'info, Game>,
-    pub owner_wallet: Signer<'info>,
+    pub older_game: Account<'info, Game>,
+    #[account(mut)]
+    pub owner: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -324,16 +368,17 @@ pub struct DeleteGame<'info> {
 pub struct DeleteMostRecentGame<'info> {
     #[account(
         mut,
-        has_one = owner_wallet,
-        close = owner_wallet,
-        constraint = game_account.key() == later_game.earlier_game_key,
+        close = owner,
+        constraint = game_account.key() == older_game.younger_game_key,
+        constraint = game_account.owner_wallet == owner.key(),
     )]
     pub game_account: Account<'info, Game>,
     #[account(mut)]
     arcade_state: Account<'info, ArcadeState>,
     #[account(mut)]
-    pub later_game: Account<'info, Game>,
-    pub owner_wallet: Signer<'info>,
+    pub older_game: Account<'info, Game>,
+    #[account(mut)]
+    pub owner: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -344,6 +389,21 @@ pub struct PlayGame<'info> {
     #[account(mut, constraint = game_account.game_queue.unwrap() == game_queue_account.key())]
     pub game_account: Account<'info, Game>,
     #[account(mut, constraint = game_queue_account.game == game_account.key())]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(mut, constraint = game_queue_account.last_player.unwrap() == last_player.key())]
+    pub last_player: Account<'info, Player>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct JoinGameQueue<'info> {
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(mut)]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
     pub game_queue_account: Account<'info, GameQueue>,
     #[account(mut, constraint = game_queue_account.last_player.unwrap() == last_player.key())]
     pub last_player: Account<'info, Player>,
@@ -366,7 +426,7 @@ pub struct InitGameQueue<'info> {
     pub game_queue_account: Account<'info, GameQueue>,
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
-    #[account(mut, constraint = game_account.game_queue == None)]
+    #[account(mut)]
     pub game_account: Account<'info, Game>,
     #[account(mut)]
     pub payer: Signer<'info>,
@@ -377,17 +437,190 @@ pub struct InitGameQueue<'info> {
 // My intention is that the 25 cents of solana go into the player's account, which are then transferred into the game account when the player
 // looses.  Or possibly the transfer happens earlier (not sure just check this).
 #[derive(Accounts)]
-pub struct AdvanceGameQueue<'info> {
-    #[account(mut,
+pub struct AdvanceOnePlayerGameQueue<'info> {
+    #[account(
+        mut,
         close = game_account,
-        constraint = game_queue_account.next_player.unwrap() == current_player.key()
+        constraint = current_player.next_player.unwrap() == next_player.key()
     )]
     pub current_player: Account<'info, Player>,
-    #[account(mut, constraint = current_player.next_player.unwrap() == next_player.key())]
+    #[account(mut)]
     pub next_player: Account<'info, Player>,
-    #[account(mut, constraint = game_queue_account.key() == game_account.game_queue.unwrap())]
+    #[account(
+        mut,
+        constraint = game_queue_account.current_player == current_player.key(),
+        constraint = game_queue_account.game == game_account.key()
+    )]
     pub game_queue_account: Account<'info, GameQueue>,
-    #[account(mut, constraint = game_account.key() == game_queue_account.game)]
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AdvanceTwoPlayerGameQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_one.next_player.unwrap() == next_player_one.key()
+    )]
+    pub current_player_one: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_two.next_player.unwrap() == next_player_two.key()
+    )]
+    pub current_player_two: Account<'info, Player>,
+    #[account(mut)]
+    pub next_player_one: Account<'info, Player>,
+    #[account(mut)]
+    pub next_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        constraint = game_queue_account_one.current_player == current_player_one.key(),
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_two.current_player == current_player_two.key(),
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AdvanceThreePlayerGameQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_one.next_player.unwrap() == next_player_one.key()
+    )]
+    pub current_player_one: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_two.next_player.unwrap() == next_player_two.key()
+    )]
+    pub current_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_three.next_player.unwrap() == next_player_three.key()
+    )]
+    pub current_player_three: Account<'info, Player>,
+    #[account(mut)]
+    pub next_player_one: Account<'info, Player>,
+    #[account(mut)]
+    pub next_player_two: Account<'info, Player>,
+    #[account(mut)]
+    pub next_player_three: Account<'info, Player>,
+    #[account(
+        mut,
+        constraint = game_queue_account_one.current_player == current_player_one.key(),
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_two.current_player == current_player_two.key(),
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_three.current_player == current_player_three.key(),
+        constraint = game_queue_account_three.game == game_account.key()
+    )]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+struct AdvanceFourPlayerGameQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_one.next_player.unwrap() == next_player_one.key()
+    )]
+    pub current_player_one: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_two.next_player.unwrap() == next_player_two.key()
+    )]
+    pub current_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_three.next_player.unwrap() == next_player_three.key()
+    )]
+    pub current_player_three: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_four.next_player.unwrap() == next_player_four.key()
+    )]
+    pub current_player_four: Account<'info, Player>,
+    #[account(mut)]
+    pub next_player_one: Account<'info, Player>,
+    #[account(mut)]
+    pub next_player_two: Account<'info, Player>,
+    #[account(mut)]
+    pub next_player_three: Account<'info, Player>,
+    #[account(mut)]
+    pub next_player_four: Account<'info, Player>,
+    #[account(
+        mut,
+        constraint = game_queue_account_one.current_player == current_player_one.key(),
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_two.current_player == current_player_two.key(),
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_three.current_player == current_player_three.key(),
+        constraint = game_queue_account_three.game == game_account.key()
+    )]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_four.current_player == current_player_four.key(),
+        constraint = game_queue_account_four.game == game_account.key()
+    )]
+    pub game_queue_account_four: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key(),
+        constraint = (*game_account.game_queues.get(3).unwrap()) == game_queue_account_four.key(),
+    )]
     pub game_account: Account<'info, Game>,
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -412,13 +645,76 @@ pub struct FinishGameQueue<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct FinishOnePlayerGameQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player.next_player == None
+    )]
+    pub current_player: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account.current_player == current_player.key(),
+        constraint = game_queue_account.last_player == current_player.key(),
+        constraint = game_queue_account.game == game_account.key()
+    )]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinishTwoPlayerGameQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_one.next_player == None
+    )]
+    pub current_player_one: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_two.next_player == None
+    )]
+    pub current_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_one.current_player == current_player_one.key(),
+        constraint = game_queue_account_one.last_player == current_player_one.key(),
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_two.current_player == current_player_two.key(),
+        constraint = game_queue_account_two.last_player == current_player_two.key(),
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 #[account]
 /// The ArcadeState is the account that points to the most current game uploaded to the arcade.
 /// 
 /// I will probably end up paying rent for this to make sure it never dissappears, but it should honestly be incredibly cheap because the rent-exempt
 /// minimum for this size is currently 0.00133632, which is about $0.044232.
-/// 
-/// size(ArcadeState) = size(Pubkey) + size(Pubkey) = 32 + 32 = 64 Bytes
 pub struct ArcadeState {
     pub most_recent_game_key: Pubkey, // the key of the most recent game to be added to the arcade.
     pub authority: Pubkey, // the initializer of the arcade's key (aka my key).
@@ -429,28 +725,26 @@ impl ArcadeState {
 }
 
 #[account]
-/// A game is the on-chain block that contains all important information about the game.
+/// A game is the on-chain block that contains all important information about a game.
 /// 
-/// NOTE: All actual game data and game art will be stored on arweave to keep the gas prices down.  The only unitended consequence of this
+/// NOTE: All actual game data and game art will be stored on arweave to keep the gas prices down.  The only unintended consequence of this
 /// is that games may not be modified after their upload, however we can delete a game if the person initializing the delete has the same
 /// wallet public key as the owner_wallet.
-/// 
-/// size(Game) = 30*size(char) + 256 + 256 + size(Leaderboard) + 5*size(Pubkey) = 120 + 256 + 256 + 180 + 160 = 972 Bytes
 pub struct Game {
-    pub title: String, // A 30 character string for the name of the game.
-    pub web_gl_hash: String, // The 256 Byte hash of the arweave location of the webGL build.
-    pub game_art_hash: String, // The 256 Byte hash of the arweave location of the game art.
-    pub leaderboard: Leaderboard, // The associated game leaderboard to rank players.
-    pub game_queue: Option<Pubkey>, // The public key of the game queue
-    pub earlier_game_key: Pubkey, // The key of the game posted one game after this game.
-    pub later_game_key: Pubkey, // The key of the game posted one game before this game.
-    pub owner_wallet: Pubkey, // The immutable wallet of the game owner (allows distribution of funds).
-    pub game_wallet: Pubkey, // The wallet generated by teh unity webGL build to allow the game to hold the money for
-                             // its rend and to hold money for distribution each month.
+    pub title: String,
+    pub web_gl_hash: String,
+    pub game_art_hash: String,
+    pub max_players: u8,
+    pub next_queue_addition_idx: u8,
+    pub leaderboard: Leaderboard,
+    pub game_queues: Vec<Pubkey>,
+    pub younger_game_key: Pubkey,
+    pub older_game_key: Pubkey,
+    pub owner_wallet: Pubkey,
 }
 
 impl Game {
-    pub const MAX_SIZE: usize = (30 * mem::size_of::<char>()) + 256 + 256 + Leaderboard::MAX_SIZE + (4 * mem::size_of::<Pubkey>()) + (1 * mem::size_of::<Option<Pubkey>>());
+    pub const MAX_SIZE: usize = (30 * mem::size_of::<char>()) + (2 * 256 * mem::size_of::<char>()) + Leaderboard::MAX_SIZE + (4 * mem::size_of::<Option<Pubkey>>()) + (3 * mem::size_of::<Pubkey>()) + (2 * mem::size_of::<u8>());
 }
 
 #[account]
@@ -459,12 +753,12 @@ impl Game {
 /// size (GameQueue) = size(Pubkey) + 2 * size(Option<Pubkey>) = 32 + 66 = 98 Bytes
 pub struct GameQueue {
     pub game: Pubkey,
-    pub next_player: Option<Pubkey>,
-    pub last_player: Option<Pubkey>,
+    pub current_player: Pubkey,
+    pub last_player: Pubkey,
 }
 
 impl GameQueue {
-    pub const MAX_SIZE: usize = mem::size_of::<Pubkey>() + (2 * mem::size_of::<Option<Pubkey>>());
+    pub const MAX_SIZE: usize = mem::size_of::<Pubkey>() + (2 * mem::size_of::<Pubkey>());
 }
 
 #[account]
@@ -538,4 +832,7 @@ pub enum Errors {
 
     #[msg("You cannot join an empty game queue if it is not empty")]
     GameQueueNotEmpty,
+
+    #[msg("The game queue given does not exist in the game queues")]
+    GameQueueDoesNotExist,
 }
