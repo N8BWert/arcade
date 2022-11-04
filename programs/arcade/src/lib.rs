@@ -165,20 +165,19 @@ pub mod arcade {
         let game_account = &mut ctx.accounts.game_account;
         let payer = &mut ctx.accounts.payer;
 
-        // TODO: find a way to test actual transactions
-        // let ix = anchor_lang::solana_program::system_instruction::transfer(
-        //     &payer.key(),
-        //     &game_account.key(),
-        //     TWENTY_FIVE_CENTS,
-        // );
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
 
-        // anchor_lang::solana_program::program::invoke(
-        //     &ix,
-        //     &[
-        //         payer.to_account_info(),
-        //         game_account.to_account_info(),
-        //     ],
-        // )?;
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
 
         player_account.wallet_key = payer.key();
         player_account.next_player = None;
@@ -202,20 +201,19 @@ pub mod arcade {
         let last_player = &mut ctx.accounts.last_player;
         let payer = &mut ctx.accounts.payer;
 
-        // TODO: find a way to test actual transactions.
-        // let ix = anchor_lang::solana_program::system_instruction::transfer(
-        //     &payer.key(),
-        //     &game_account.key(),
-        //     TWENTY_FIVE_CENTS,
-        // );
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
 
-        // anchor_lang::solana_program::program::invoke(
-        //     &ix,
-        //     &[
-        //         payer.to_account_info(),
-        //         game_account.to_account_info(),
-        //     ],
-        // )?;
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
 
         player_account.wallet_key = payer.key();
         player_account.next_player = None;
