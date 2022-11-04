@@ -2,6 +2,8 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::entrypoint::ProgramResult;
 use anchor_lang::solana_program::native_token::LAMPORTS_PER_SOL;
 
+use std::mem;
+
 declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
 
 // AS OF October 13th 2022 at 3:20 PM the price of solana is $32.06
@@ -79,6 +81,8 @@ pub mod arcade {
 
         game_account.leaderboard = leaderboard;
 
+        game_account.game_queue = None;
+
         // Store most recent game key as current game key in arcade account.
         arcade_account.most_recent_game_key = game_account.key();
 
@@ -155,16 +159,15 @@ pub mod arcade {
         Ok(())
     }
 
-    /// This function will be called by the webgl program to allow users to enter the game queue
-    /// 
-    /// Note: This code probably doesn't work so we'll need to test this a bit
-    pub fn join_game_queue(ctx: Context<PlayGame>) -> ProgramResult {
+    pub fn initialize_game_queue(ctx: Context<InitGameQueue>) -> Result<()> {
+        let game_queue_account = &mut ctx.accounts.game_queue_account;
+        let player_account = &mut ctx.accounts.player_account;
         let game_account = &mut ctx.accounts.game_account;
         let payer = &mut ctx.accounts.payer;
 
         let ix = anchor_lang::solana_program::system_instruction::transfer(
             &payer.key(),
-            &game_account.game_wallet,
+            &game_account.key(),
             TWENTY_FIVE_CENTS,
         );
 
@@ -176,6 +179,62 @@ pub mod arcade {
             ],
         )?;
 
+        player_account.wallet_key = payer.key();
+        player_account.next_player = None;
+
+        game_queue_account.game = game_account.key();
+        game_queue_account.next_player = Some(player_account.key());
+        game_queue_account.last_player = Some(player_account.key());
+
+        game_account.game_queue = Some(game_queue_account.key());
+
+        Ok(())
+    }
+
+    /// This function will be called by the webgl program to allow users to enter the game queue
+    /// 
+    /// Note: This code probably doesn't work so we'll need to test this a bit
+    pub fn join_game_queue(ctx: Context<PlayGame>) -> ProgramResult {
+        let player_account = &mut ctx.accounts.player_account;
+        let game_account = &mut ctx.accounts.game_account;
+        let game_queue_account = &mut ctx.accounts.game_queue_account;
+        let last_player = &mut ctx.accounts.last_player;
+        let payer = &mut ctx.accounts.payer;
+
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
+
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
+
+        player_account.wallet_key = payer.key();
+        player_account.next_player = None;
+
+        last_player.next_player = Some(player_account.key());
+
+        game_queue_account.last_player = Some(player_account.key());
+
+        Ok(())
+    }
+
+    pub fn advance_game_queue(ctx: Context<AdvanceGameQueue>) -> ProgramResult {
+        let next_player = &mut ctx.accounts.next_player;
+        let game_queue_account = &mut ctx.accounts.game_queue_account;
+
+        game_queue_account.next_player = Some(next_player.key());
+
+        Ok(())
+    }
+
+    pub fn finish_game_queue(_ctx: Context<FinishGameQueue>) -> ProgramResult {
         Ok(())
     }
 
@@ -220,9 +279,9 @@ pub struct Initialize {}
 #[derive(Accounts)]
 /// Context used to initialize the arcade.
 pub struct InitArcade<'info> {
-    #[account(init, payer = authority, space = 8 + 32 + 32)]
+    #[account(init, payer = authority, space = 8 + ArcadeState::MAX_SIZE)]
     pub arcade_account: Account<'info, ArcadeState>, // The accound for the arcade state (i.e. the pointer to the newest game).
-    #[account(init, payer = authority, space = 8 + 940)]
+    #[account(init, payer = authority, space = 8 + Game::MAX_SIZE)]
     pub genesis_game_account: Account<'info, Game>, // The first game (i.e. the game that began the arcade).
     #[account(mut)]
     pub authority: Signer<'info>, // The person who pays for initializing the arcade (i.e. me).
@@ -232,7 +291,7 @@ pub struct InitArcade<'info> {
 #[derive(Accounts)]
 /// Context used to create a new game.
 pub struct GamePost<'info> {
-    #[account(init, payer = owner, space = 8 + 940)]
+    #[account(init, payer = owner, space = 8 + Game::MAX_SIZE)]
     pub game_account: Account<'info, Game>,
     #[account(mut)]
     pub arcade_account: Account<'info, ArcadeState>,
@@ -280,8 +339,14 @@ pub struct DeleteMostRecentGame<'info> {
 
 #[derive(Accounts)]
 pub struct PlayGame<'info> {
-    #[account(mut)]
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(mut, constraint = game_account.game_queue.unwrap() == game_queue_account.key())]
     pub game_account: Account<'info, Game>,
+    #[account(mut, constraint = game_queue_account.game == game_account.key())]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(mut, constraint = game_queue_account.last_player.unwrap() == last_player.key())]
+    pub last_player: Account<'info, Player>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -290,6 +355,58 @@ pub struct PlayGame<'info> {
 #[derive(Accounts)]
 pub struct GameEnd<'info> {
     #[account(mut)]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct InitGameQueue<'info> {
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(mut, constraint = game_account.game_queue == None)]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+// TODO: This transfer of credits might not actually be what I want please check later.
+// My intention is that the 25 cents of solana go into the player's account, which are then transferred into the game account when the player
+// looses.  Or possibly the transfer happens earlier (not sure just check this).
+#[derive(Accounts)]
+pub struct AdvanceGameQueue<'info> {
+    #[account(mut,
+        close = game_account,
+        constraint = game_queue_account.next_player.unwrap() == current_player.key()
+    )]
+    pub current_player: Account<'info, Player>,
+    #[account(mut, constraint = current_player.next_player.unwrap() == next_player.key())]
+    pub next_player: Account<'info, Player>,
+    #[account(mut, constraint = game_queue_account.key() == game_account.game_queue.unwrap())]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(mut, constraint = game_account.key() == game_queue_account.game)]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinishGameQueue<'info> {
+    #[account(mut,
+        close = game_account,
+        constraint = game_queue_account.next_player.unwrap() == current_player.key()
+    )]
+    pub current_player: Account<'info, Player>,
+    #[account(mut,
+        close = game_account,
+        constraint = game_queue_account.key() == game_account.game_queue.unwrap(),
+        constraint = game_queue_account.last_player.unwrap() == current_player.key()
+    )]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(mut, constraint = game_account.key() == game_queue_account.game)]
     pub game_account: Account<'info, Game>,
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -307,6 +424,10 @@ pub struct ArcadeState {
     pub authority: Pubkey, // the initializer of the arcade's key (aka my key).
 }
 
+impl ArcadeState {
+    pub const MAX_SIZE: usize = mem::size_of::<Pubkey>() + mem::size_of::<Pubkey>();
+}
+
 #[account]
 /// A game is the on-chain block that contains all important information about the game.
 /// 
@@ -314,17 +435,49 @@ pub struct ArcadeState {
 /// is that games may not be modified after their upload, however we can delete a game if the person initializing the delete has the same
 /// wallet public key as the owner_wallet.
 /// 
-/// size(Game) = 30*size(char) + 256 + 256 + size(Leaderboard) + 4*size(Pubkey) = 120 + 256 + 256 + 180 + 128 = 940 Bytes
+/// size(Game) = 30*size(char) + 256 + 256 + size(Leaderboard) + 5*size(Pubkey) = 120 + 256 + 256 + 180 + 160 = 972 Bytes
 pub struct Game {
     pub title: String, // A 30 character string for the name of the game.
     pub web_gl_hash: String, // The 256 Byte hash of the arweave location of the webGL build.
     pub game_art_hash: String, // The 256 Byte hash of the arweave location of the game art.
     pub leaderboard: Leaderboard, // The associated game leaderboard to rank players.
+    pub game_queue: Option<Pubkey>, // The public key of the game queue
     pub earlier_game_key: Pubkey, // The key of the game posted one game after this game.
     pub later_game_key: Pubkey, // The key of the game posted one game before this game.
     pub owner_wallet: Pubkey, // The immutable wallet of the game owner (allows distribution of funds).
     pub game_wallet: Pubkey, // The wallet generated by teh unity webGL build to allow the game to hold the money for
                              // its rend and to hold money for distribution each month.
+}
+
+impl Game {
+    pub const MAX_SIZE: usize = (30 * mem::size_of::<char>()) + 256 + 256 + Leaderboard::MAX_SIZE + (4 * mem::size_of::<Pubkey>()) + (1 * mem::size_of::<Option<Pubkey>>());
+}
+
+#[account]
+/// The game queue is a game's player queue.  It seems that this would make the game too big, so it gets its own account.
+/// 
+/// size (GameQueue) = size(Pubkey) + 2 * size(Option<Pubkey>) = 32 + 66 = 98 Bytes
+pub struct GameQueue {
+    pub game: Pubkey,
+    pub next_player: Option<Pubkey>,
+    pub last_player: Option<Pubkey>,
+}
+
+impl GameQueue {
+    pub const MAX_SIZE: usize = mem::size_of::<Pubkey>() + (2 * mem::size_of::<Option<Pubkey>>());
+}
+
+#[account]
+/// The on chain reference for players to represent a player in a game's queue.
+/// 
+/// size(Player) = 1 * size(Pubkey) + 1 * size(Option<Pubkey>) = 32 + 33 = 65 Bytes
+pub struct Player {
+    pub wallet_key: Pubkey,
+    pub next_player: Option<Pubkey>,
+}
+
+impl Player {
+    pub const MAX_SIZE: usize = mem::size_of::<Pubkey>() + mem::size_of::<Option<Pubkey>>();
 }
 
 #[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize)]
@@ -336,6 +489,10 @@ pub struct Leaderboard {
     pub third_place: Place, // The person in third place.
 }
 
+impl Leaderboard {
+    pub const MAX_SIZE: usize = (3 * Place::MAX_SIZE);
+}
+
 #[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize)]
 /// A place is a player's place on the leaderboard.
 /// size(Place) = 3*size(char) + size(Pubkey) + size(u128) = 3*4 + 32 + 16 = 12 + 32 + 16 = 60 Bytes
@@ -343,6 +500,10 @@ pub struct Place {
     pub name: String, // 3 character string for traditional arcade scoreboard names.
     pub wallet_key: Pubkey, // public key of the placeholder to allow the transfer of funds.
     pub score: u128, // High score achieved by this individual.
+}
+
+impl Place {
+    pub const MAX_SIZE: usize = (3 * mem::size_of::<char>()) + (mem::size_of::<Pubkey>()) + (mem::size_of::<u128>());
 }
 
 #[event]
@@ -371,4 +532,10 @@ pub enum Errors {
 
     #[msg("If you are going to delete a game, make sure to specify the correct game before and after it")]
     GameAccountNotProvidedToDelete,
+
+    #[msg("You cannot create a game queue for a game that already has a game queue")]
+    AlreadyInitializedGameQueue,
+
+    #[msg("You cannot join an empty game queue if it is not empty")]
+    GameQueueNotEmpty,
 }

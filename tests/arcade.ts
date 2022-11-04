@@ -8,6 +8,10 @@ const { makeGame } = require("./functions/makeGame.js");
 const { deleteRecentGame } = require("./functions/deleteRecentGame.js");
 const { deleteGame } = require("./functions/deleteGame.js");
 const { updateLeaderboard } = require("./functions/updateLeaderboard.js");
+const { makeGameQueue } = require("./functions/makeGameQueue.js");
+const { playGame } = require("./functions/playGame.js");
+const { advanceGameQueue } = require("./functions/advanceGameQueue.js");
+const { finishGameQueue } = require("./functions/finishGameQueue.js");
 
 describe("arcade", () => {
   // Configure the client to use the local cluster.
@@ -149,5 +153,84 @@ describe("arcade", () => {
     assert.equal(updatedGame.leaderboard.thirdPlace.name, playerName);
     assert.equal(updatedGame.leaderboard.thirdPlace.walletKey.toString(), walletKey.publicKey.toString());
     assert.equal(updatedGame.leaderboard.thirdPlace.score.toNumber(), score.toNumber());
-  })
+  });
+
+  it("Creates a Game Queue for a game", async () => {
+    // Create an arcade
+    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
+
+    // Create 1 game for the arcade
+    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount);
+
+    // Create the game queue
+    const { queueAccount, gameQueue, playerAccount, player } = await makeGameQueue(program, provider, gameAccount);
+
+    const updatedGame = await program.account.game.fetch(gameAccount.publicKey);
+
+    assert.equal(gameQueue.game.toString(), gameAccount.publicKey.toString());
+    assert.equal(updatedGame.gameQueue.toString(), queueAccount.publicKey.toString());
+    assert.equal(player.walletKey.toString(), provider.wallet.publicKey.toString());
+    assert.equal(player.nextPlayer, null);
+    assert.equal(gameQueue.nextPlayer.toString(), playerAccount.publicKey.toString());
+    assert.equal(gameQueue.lastPlayer.toString(), playerAccount.publicKey.toString());
+  });
+
+  it("allows joining the game queue for a non-empty game queue", async () => {
+    // Create an arcade
+    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
+
+    // Create 1 game for the arcade
+    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount);
+
+    // Create the game queue
+    const { queueAccount, playerAccount: initialPlayerAccount } = await makeGameQueue(program, provider, gameAccount);
+
+    // Create another player to join the now non-empty game queue
+    const { playerAccount: newPlayerAccount, player } = await playGame(program, provider, gameAccount, queueAccount, initialPlayerAccount);
+
+    const updatedQueue = await program.account.gameQueue.fetch(queueAccount.publicKey);
+    const updatedInitialPlayer = await program.account.player.fetch(initialPlayerAccount.publicKey);
+
+    assert.equal(updatedQueue.nextPlayer.toString(), initialPlayerAccount.publicKey.toString());
+    assert.equal(updatedQueue.lastPlayer.toString(), newPlayerAccount.publicKey.toString());
+    assert.equal(player.walletKey.toString(), provider.wallet.publicKey.toString());
+    assert.equal(updatedInitialPlayer.nextPlayer.toString(), newPlayerAccount.publicKey.toString());
+  });
+
+  it("advances a non empty game queue", async () => {
+    // Create an arcade
+    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
+
+    // Create 1 game for the arcade
+    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount);
+
+    // Create the game queue
+    const { queueAccount, playerAccount: playerAccount1 } = await makeGameQueue(program, provider, gameAccount);
+
+    // Add 2 players to the game queue
+    const { playerAccount: playerAccount2 } = await playGame(program, provider, gameAccount, queueAccount, playerAccount1);
+    const { playerAccount: playerAccount3 } = await playGame(program, provider, gameAccount, queueAccount, playerAccount2);
+
+    // Advance the game queue 1 time
+    const { updatedGameQueue } = await advanceGameQueue(program, provider, playerAccount1, playerAccount2, queueAccount, gameAccount);
+
+    assert.equal(updatedGameQueue.nextPlayer.toString(), playerAccount2.publicKey.toString());
+    assert.equal(updatedGameQueue.lastPlayer.toString(), playerAccount3.publicKey.toString());
+  });
+
+  it("finishes a game queue", async () => {
+    // Create an arcade
+    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
+
+    // Create 1 game for the arcade
+    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount);
+
+    // Create the game queue
+    const { queueAccount, playerAccount } = await makeGameQueue(program, provider, gameAccount);
+
+    // Remove the player from the game queue and finish the game queue
+    const { updatedGame } = await finishGameQueue(program, provider, playerAccount, gameAccount, queueAccount);
+
+    assert.equal(updatedGame.queue, null);
+  });
 });
