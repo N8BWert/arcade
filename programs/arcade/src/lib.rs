@@ -277,7 +277,525 @@ pub mod arcade {
         Ok(())
     }
 
-    pub fn finish_game_queue(_ctx: Context<FinishGameQueue>) -> ProgramResult {
+    pub fn finish_one_player_game_queue(ctx: Context<FinishOnePlayerGameQueue>) -> ProgramResult {
+        Ok(())
+    }
+
+    pub fn finish_two_player_game_queue(ctx: Context<FinishTwoPlayerGameQueue>) -> ProgramResult {
+        Ok(())
+    }
+
+    pub fn finish_three_player_game_queue(ctx: Context<FinishThreePlayerGameQueue>) -> ProgramResult {
+        Ok(())
+    }
+
+    pub fn finish_four_player_game_queue(ctx: Context<FinishFourPlayerGameQueue>) -> ProgramResult {
+        Ok(())
+    }
+
+    pub fn advance_two_player_king_of_hill_queue(ctx: Context<AdvanceTwoPlayerKingOfHillQueue>) -> Result<()> {
+        let winning_player = &mut ctx.accounts.winning_player;
+        let losing_player = &mut ctx.accounts.losing_player;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+
+        if game_queue_account_one.current_player != winning_player.key() && game_queue_account_two.current_player != winning_player.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        } else if game_queue_account_two.current_player != losing_player.key() || game_queue_account_two.current_player != losing_player.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        }
+
+        // If equal number of players in queue => draw from queue one
+        // If more players in queue 1 => draw from queue one
+        // If more players in queue 2 => draw from queue two
+        if game_queue_account_one.num_players_in_queue >= game_queue_account_two.num_players_in_queue {
+            // If losing player was the current player in queue 1, advance queue simply, otherwise swap contents of queue 1 and queue 2
+            if game_queue_account_one.current_player == losing_player.key() {
+                // Update current player
+                game_queue_account_one.current_player = losing_player.next_player.unwrap();
+            } else {
+                // Update current player for game queue 1 to be the next player in game queue 2
+                game_queue_account_one.current_player = winning_player.next_player.unwrap();
+                winning_player.next_player = losing_player.next_player;
+            }
+            // Update num players in game queue 1
+            game_queue_account_one.num_players_in_queue -= 1;
+        } else {
+            // If losing player was the current player in queue 2, advance queue simply, other wise swap contents of queue 1 and queue 2
+            if game_queue_account_two.current_player == losing_player.key() {
+                // Update current player
+                game_queue_account_two.current_player = losing_player.next_player.unwrap();
+            } else {
+                // Update current player for game queue 2 to be the next player in game queue 2
+                game_queue_account_two.current_player = winning_player.next_player.unwrap();
+                winning_player.next_player = losing_player.next_player;
+            }
+            // Update num players in game queue 2
+            game_queue_account_two.num_players_in_queue -= 1;
+        }
+
+        return Ok(());
+    }
+
+    pub fn advance_three_player_king_of_hill_queue(ctx: Context<AdvanceThreePlayerKingOfHillQueue>) -> Result<()> {
+        let winning_player = &mut ctx.accounts.winning_player;
+        let losing_player_one = &mut ctx.accounts.losing_player_one;
+        let losing_player_two = &mut ctx.accounts.losing_player_two;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
+        let game_account = & ctx.accounts.game_account;
+
+        if game_queue_account_one.current_player != winning_player.key() && game_queue_account_two.current_player != winning_player.key() && game_queue_account_three.current_player != winning_player.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        } else if game_queue_account_one.current_player != losing_player_one.key() && game_queue_account_two.current_player != losing_player_two.key() && game_queue_account_three.current_player != losing_player_two.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        } else if game_queue_account_one.current_player != losing_player_two.key() && game_queue_account_two.current_player != losing_player_two.key() && game_queue_account_three.current_player != losing_player_two.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        }
+
+        let mut winning_queue: u8 = 0;
+
+        // game queue 1
+        if game_queue_account_one.current_player == losing_player_one.key() {
+            // Advance game_queue_one normally
+            (game_queue_account_one.current_player, game_queue_account_one.last_player) = match losing_player_one.next_player {
+                Some(player) => (player, game_queue_account_one.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+
+            // Decrease number of players in the queue
+            game_queue_account_one.num_players_in_queue -= 1;
+        } else if game_queue_account_one.current_player == losing_player_two.key() {
+            // Advance game_queue_one_normally
+            (game_queue_account_one.current_player, game_queue_account_one.last_player) = match losing_player_two.next_player {
+                Some(player) => (player, game_queue_account_one.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+
+            // Decrease number of players in the queue
+            game_queue_account_one.num_players_in_queue -= 1;
+        } else {
+            winning_queue = 1;
+        }
+
+        if game_queue_account_two.current_player == losing_player_one.key() {
+            (game_queue_account_two.current_player, game_queue_account_two.last_player) = match losing_player_one.next_player {
+                Some(player) => (player, game_queue_account_two.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_two.num_players_in_queue -= 1;
+        } else if game_queue_account_two.current_player == losing_player_two.key() {
+            (game_queue_account_two.current_player, game_queue_account_two.last_player) = match losing_player_two.next_player {
+                Some(player) => (player, game_queue_account_two.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_two.num_players_in_queue -= 1;
+        } else {
+            winning_queue = 2
+        }
+
+        // G H I    G   I    H   I
+        // D E F -> D H F -> E G F
+        // A B C -> A E C -> A D C
+        // 1 2 3    1 2 3    1 2 3
+        if winning_queue == 1 {
+            let og_second_current_player = game_queue_account_two.current_player;
+            let og_second_last_player = game_queue_account_two.last_player;
+            let og_second_num_players = game_queue_account_two.num_players_in_queue;
+
+            game_queue_account_two.current_player = match winning_player.next_player {
+                Some(player) => player,
+                None => game_account.key(),
+            };
+            game_queue_account_two.last_player = game_queue_account_one.last_player;
+            game_queue_account_two.num_players_in_queue = game_queue_account_one.num_players_in_queue - 1;
+
+            winning_player.next_player = Some(og_second_current_player);
+            game_queue_account_one.last_player = og_second_last_player;
+            game_queue_account_one.num_players_in_queue = og_second_num_players;
+        }
+
+        if game_queue_account_three.current_player == losing_player_one.key() {
+            (game_queue_account_three.current_player, game_queue_account_three.last_player) = match losing_player_one.next_player {
+                Some(player) => (player, game_queue_account_three.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_three.num_players_in_queue -= 1;
+        } else if game_queue_account_three.current_player == losing_player_two.key() {
+            (game_queue_account_three.current_player, game_queue_account_three.last_player) = match losing_player_two.next_player {
+                Some(player) => (player, game_queue_account_three.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_three.num_players_in_queue -= 1;
+        }
+
+        // G   I    G        I            G H I    G H      G I
+        // D H F -> D H I -> F H G   ||   D E F -> D E I -> D F H
+        // A E C -> A E F -> A E D   ||   A B C -> A B F -> A B E
+        // 1 2 3    1 2 3    1 2 3        1 2 3    1 2 3    1 2 3
+        if winning_queue == 1 {
+            let og_third_current_player = game_queue_account_three.current_player;
+            let og_third_last_player = game_queue_account_three.last_player;
+            let og_third_num_players = game_queue_account_three.num_players_in_queue;
+
+            game_queue_account_three.current_player = match winning_player.next_player {
+                Some(player) => player,
+                None => game_account.key(),
+            };
+            game_queue_account_three.last_player = game_queue_account_one.last_player;
+            game_queue_account_three.num_players_in_queue = game_queue_account_one.num_players_in_queue - 1;
+
+            winning_player.next_player = Some(og_third_current_player);
+            game_queue_account_one.last_player = og_third_last_player;
+            game_queue_account_one.num_players_in_queue = og_third_num_players;
+        } else if winning_queue == 2 {
+            let og_third_current_player = game_queue_account_three.current_player;
+            let og_third_last_player = game_queue_account_three.last_player;
+            let og_third_num_players = game_queue_account_three.num_players_in_queue;
+
+            game_queue_account_three.current_player = match winning_player.next_player {
+                Some(player) => player,
+                None => game_account.key(),
+            };
+            game_queue_account_three.last_player = game_queue_account_two.last_player;
+            game_queue_account_three.num_players_in_queue = game_queue_account_two.num_players_in_queue - 1;
+
+            winning_player.next_player = Some(og_third_current_player);
+            game_queue_account_two.last_player = og_third_last_player;
+            game_queue_account_two.num_players_in_queue = og_third_num_players;
+        }
+
+        // swap queues 2 and 3 if 3 has more members than 2
+        if game_queue_account_three.num_players_in_queue > game_queue_account_two.num_players_in_queue {
+            let temp_current_player = game_queue_account_three.current_player;
+            let temp_last_player = game_queue_account_three.last_player;
+            let temp_queue_length = game_queue_account_three.num_players_in_queue;
+
+            // swap
+            game_queue_account_three.current_player = game_queue_account_two.current_player;
+            game_queue_account_three.last_player = game_queue_account_two.last_player;
+            game_queue_account_three.num_players_in_queue = game_queue_account_two.num_players_in_queue;
+
+            game_queue_account_two.current_player = temp_current_player;
+            game_queue_account_two.last_player = temp_last_player;
+            game_queue_account_two.num_players_in_queue = temp_queue_length;
+        }
+
+        // swap queues 1 and 2 if 2 has more members than 1
+        if game_queue_account_two.num_players_in_queue > game_queue_account_one.num_players_in_queue {
+            let temp_current_player = game_queue_account_two.current_player;
+            let temp_last_player = game_queue_account_two.last_player;
+            let temp_queue_length = game_queue_account_two.num_players_in_queue;
+
+            // swap
+            game_queue_account_two.current_player = game_queue_account_one.current_player;
+            game_queue_account_two.last_player = game_queue_account_one.last_player;
+            game_queue_account_two.num_players_in_queue = game_queue_account_one.num_players_in_queue;
+
+            game_queue_account_one.current_player = temp_current_player;
+            game_queue_account_one.last_player = temp_last_player;
+            game_queue_account_one.num_players_in_queue = temp_queue_length;
+        }
+
+        Ok(())
+    }
+
+    pub fn advance_four_player_king_of_hill_queue(ctx: Context<AdvanceFourPlayerKingOfHillQueue>) -> Result<()> {
+        let winning_player = &mut ctx.accounts.winning_player;
+        let losing_player_one = &mut ctx.accounts.losing_player_one;
+        let losing_player_two = &mut ctx.accounts.losing_player_two;
+        let losing_player_three = &mut ctx.accounts.losing_player_three;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
+        let game_queue_account_four = &mut ctx.accounts.game_queue_account_four;
+        let game_account = & ctx.accounts.game_account;
+
+        if game_queue_account_one.current_player != winning_player.key() &&
+           game_queue_account_one.current_player != losing_player_one.key() &&
+           game_queue_account_one.current_player != losing_player_two.key() &&
+           game_queue_account_one.current_player != losing_player_three.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        } else if game_queue_account_two.current_player != winning_player.key() &&
+                  game_queue_account_two.current_player != losing_player_one.key() &&
+                  game_queue_account_two.current_player != losing_player_two.key() &&
+                  game_queue_account_two.current_player != losing_player_three.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        } else if game_queue_account_three.current_player != winning_player.key() &&
+                  game_queue_account_three.current_player != losing_player_one.key() &&
+                  game_queue_account_three.current_player != losing_player_two.key() &&
+                  game_queue_account_three.current_player != losing_player_three.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        } else if game_queue_account_four.current_player != winning_player.key() &&
+                  game_queue_account_four.current_player != losing_player_one.key() &&
+                  game_queue_account_four.current_player != losing_player_two.key() &&
+                  game_queue_account_four.current_player != losing_player_three.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        }
+
+        let mut winning_queue: u8 = 0;
+
+        // game queue 1
+        if game_queue_account_one.current_player == losing_player_one.key() {
+            // Advance game queue one normally
+            (game_queue_account_one.current_player, game_queue_account_one.last_player) = match losing_player_one.next_player {
+                Some(player) => (player, game_queue_account_one.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_one.num_players_in_queue -= 1;
+        } else if game_queue_account_one.current_player == losing_player_two.key() {
+            // Advance game queue normally
+            (game_queue_account_one.current_player, game_queue_account_one.last_player) = match losing_player_two.next_player {
+                Some(player) => (player, game_queue_account_one.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_one.num_players_in_queue -= 1;
+        } else if game_queue_account_one.current_player == losing_player_three.key() {
+            // Advance game queue normally
+            (game_queue_account_one.current_player, game_queue_account_one.last_player) = match losing_player_three.next_player {
+                Some(player) => (player, game_queue_account_one.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_one.num_players_in_queue -= 1;
+        } else {
+            winning_queue = 1;
+        }
+
+        // game queue 2
+        if game_queue_account_two.current_player == losing_player_one.key() {
+            // Advance game queue one normally
+            (game_queue_account_two.current_player, game_queue_account_two.last_player) = match losing_player_one.next_player {
+                Some(player) => (player, game_queue_account_two.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_two.num_players_in_queue -= 1;
+        } else if game_queue_account_two.current_player == losing_player_two.key() {
+            // Advance game queue normally
+            (game_queue_account_two.current_player, game_queue_account_two.last_player) = match losing_player_two.next_player {
+                Some(player) => (player, game_queue_account_two.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_two.num_players_in_queue -= 1;
+        } else if game_queue_account_two.current_player == losing_player_three.key() {
+            // Advance game queue normally
+            (game_queue_account_two.current_player, game_queue_account_two.last_player) = match losing_player_three.next_player {
+                Some(player) => (player, game_queue_account_two.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_two.num_players_in_queue -= 1;
+        } else {
+            winning_queue = 2;
+        }
+
+        // I J K L    I   K L    J   K L
+        // E F G H -> E J G H -> F I G H
+        // A B C D -> A F C D -> A E C D
+        // 1 2 3 4    1 2 3 4    1 2 3 4
+        if winning_queue == 1 {
+            let og_second_current_player = game_queue_account_two.current_player;
+            let og_second_last_player = game_queue_account_two.last_player;
+            let og_second_num_players = game_queue_account_two.num_players_in_queue;
+
+            game_queue_account_two.current_player = match winning_player.next_player {
+                Some(player) => player,
+                None => game_account.key(),
+            };
+            game_queue_account_two.last_player = game_queue_account_one.last_player;
+            game_queue_account_two.num_players_in_queue = game_queue_account_one.num_players_in_queue - 1;
+
+            winning_player.next_player = Some(og_second_current_player);
+            game_queue_account_one.last_player = og_second_last_player;
+            game_queue_account_one.num_players_in_queue = og_second_num_players;
+        }
+
+        // game queue 3
+        if game_queue_account_three.current_player == losing_player_one.key() {
+            // Advance game queue one normally
+            (game_queue_account_three.current_player, game_queue_account_three.last_player) = match losing_player_one.next_player {
+                Some(player) => (player, game_queue_account_three.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_three.num_players_in_queue -= 1;
+        } else if game_queue_account_three.current_player == losing_player_two.key() {
+            // Advance game queue normally
+            (game_queue_account_three.current_player, game_queue_account_three.last_player) = match losing_player_two.next_player {
+                Some(player) => (player, game_queue_account_three.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_three.num_players_in_queue -= 1;
+        } else if game_queue_account_three.current_player == losing_player_three.key() {
+            // Advance game queue normally
+            (game_queue_account_three.current_player, game_queue_account_three.last_player) = match losing_player_three.next_player {
+                Some(player) => (player, game_queue_account_three.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_three.num_players_in_queue -= 1;
+        } else {
+            winning_queue = 3;
+        }
+
+        // I   K L    I     L    K     L        I J K L    I J   L    I K   L
+        // E J G H -> E J K H -> G J I H   ||   E F G H -> E F K H -> E G J H
+        // A F C D -> A F G D -> A F E D   ||   A B C D -> A B G D -> A B F D
+        // 1 2 3 4    1 2 3 4    1 2 3 4        1 2 3 4    1 2 3 4    1 2 3 4
+        if winning_queue == 1 {
+            let og_third_current_player = game_queue_account_three.current_player;
+            let og_third_last_player = game_queue_account_three.last_player;
+            let og_third_num_players = game_queue_account_three.num_players_in_queue;
+
+            game_queue_account_three.current_player = match winning_player.next_player {
+                Some(player) => player,
+                None => game_account.key(),
+            };
+            game_queue_account_three.last_player = game_queue_account_one.last_player;
+            game_queue_account_three.num_players_in_queue = game_queue_account_one.num_players_in_queue - 1;
+
+            winning_player.next_player = Some(og_third_current_player);
+            game_queue_account_one.last_player = og_third_last_player;
+            game_queue_account_one.num_players_in_queue = og_third_num_players;
+        } else if winning_queue == 2 {
+            let og_third_current_player = game_queue_account_three.current_player;
+            let og_third_last_player = game_queue_account_three.last_player;
+            let og_third_num_players = game_queue_account_three.num_players_in_queue;
+
+            game_queue_account_three.current_player = match winning_player.next_player {
+                Some(player) => player,
+                None => game_account.key(),
+            };
+            game_queue_account_three.last_player = game_queue_account_two.last_player;
+            game_queue_account_three.num_players_in_queue = game_queue_account_two.num_players_in_queue - 1;
+
+            winning_player.next_player = Some(og_third_current_player);
+            game_queue_account_two.last_player = og_third_last_player;
+            game_queue_account_two.num_players_in_queue = og_third_num_players;
+        }
+
+        // game queue 4
+        if game_queue_account_four.current_player == losing_player_one.key() {
+            // Advance game queue one normally
+            (game_queue_account_four.current_player, game_queue_account_four.last_player) = match losing_player_one.next_player {
+                Some(player) => (player, game_queue_account_four.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_four.num_players_in_queue -= 1;
+        } else if game_queue_account_four.current_player == losing_player_two.key() {
+            // Advance game queue normally
+            (game_queue_account_four.current_player, game_queue_account_four.last_player) = match losing_player_two.next_player {
+                Some(player) => (player, game_queue_account_four.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_four.num_players_in_queue -= 1;
+        } else if game_queue_account_four.current_player == losing_player_three.key() {
+            // Advance game queue normally
+            (game_queue_account_four.current_player, game_queue_account_four.last_player) = match losing_player_three.next_player {
+                Some(player) => (player, game_queue_account_four.last_player),
+                None => (game_account.key(), game_account.key()),
+            };
+            game_queue_account_four.num_players_in_queue -= 1;
+        } else {
+            winning_queue = 4;
+        }
+
+        // I   K L    I     L    K     L        I J K L    I J   L    I K   L
+        // E J G H -> E J K H -> G J I H   ||   E F G H -> E F K H -> E G J H
+        // A F C D -> A F G D -> A F E D   ||   A B C D -> A B G D -> A B F D
+        // 1 2 3 4    1 2 3 4    1 2 3 4        1 2 3 4    1 2 3 4    1 2 3 4
+        if winning_queue == 1 {
+            let og_fourth_current_player = game_queue_account_four.current_player;
+            let og_fourth_last_player = game_queue_account_four.last_player;
+            let og_fourth_num_players = game_queue_account_four.num_players_in_queue;
+
+            game_queue_account_four.current_player = match winning_player.next_player {
+                Some(player) => player,
+                None => game_account.key(),
+            };
+            game_queue_account_four.last_player = game_queue_account_one.last_player;
+            game_queue_account_four.num_players_in_queue = game_queue_account_one.num_players_in_queue - 1;
+
+            winning_player.next_player = Some(og_fourth_current_player);
+            game_queue_account_one.last_player = og_fourth_last_player;
+            game_queue_account_one.num_players_in_queue = og_fourth_num_players;
+        } else if winning_queue == 2 {
+            let og_fourth_current_player = game_queue_account_four.current_player;
+            let og_fourth_last_player = game_queue_account_four.last_player;
+            let og_fourth_num_players = game_queue_account_four.num_players_in_queue;
+
+            game_queue_account_four.current_player = match winning_player.next_player {
+                Some(player) => player,
+                None => game_account.key(),
+            };
+            game_queue_account_four.last_player = game_queue_account_two.last_player;
+            game_queue_account_four.num_players_in_queue = game_queue_account_two.num_players_in_queue - 1;
+
+            winning_player.next_player = Some(og_fourth_current_player);
+            game_queue_account_two.last_player = og_fourth_last_player;
+            game_queue_account_two.num_players_in_queue = og_fourth_num_players;
+        } else if winning_queue == 3 {
+            let og_fourth_current_player = game_queue_account_four.current_player;
+            let og_fourth_last_player = game_queue_account_four.last_player;
+            let og_fourth_num_players = game_queue_account_four.num_players_in_queue;
+
+            game_queue_account_four.current_player = match winning_player.next_player {
+                Some(player) => player,
+                None => game_account.key(),
+            };
+            game_queue_account_four.last_player = game_queue_account_three.last_player;
+            game_queue_account_four.num_players_in_queue = game_queue_account_three.num_players_in_queue - 1;
+
+            winning_player.next_player = Some(og_fourth_current_player);
+            game_queue_account_three.last_player = og_fourth_last_player;
+            game_queue_account_three.num_players_in_queue = og_fourth_num_players;
+        }
+
+        // swap queues 3 and 4 if 4 has more members than 3
+        if game_queue_account_four.num_players_in_queue > game_queue_account_three.num_players_in_queue {
+            let temp_current_player = game_queue_account_four.current_player;
+            let temp_last_player = game_queue_account_four.last_player;
+            let temp_queue_length = game_queue_account_four.num_players_in_queue;
+
+            // swap
+            game_queue_account_four.current_player = game_queue_account_three.current_player;
+            game_queue_account_four.last_player = game_queue_account_three.last_player;
+            game_queue_account_four.num_players_in_queue = game_queue_account_three.num_players_in_queue;
+
+            game_queue_account_three.current_player = temp_current_player;
+            game_queue_account_three.last_player = temp_last_player;
+            game_queue_account_three.num_players_in_queue = temp_queue_length;
+        }
+
+        // swap queues 2 and 3 if 3 has more members than 2
+        if game_queue_account_three.num_players_in_queue > game_queue_account_two.num_players_in_queue {
+            let temp_current_player = game_queue_account_three.current_player;
+            let temp_last_player = game_queue_account_three.last_player;
+            let temp_queue_length = game_queue_account_three.num_players_in_queue;
+
+            // swap
+            game_queue_account_three.current_player = game_queue_account_two.current_player;
+            game_queue_account_three.last_player = game_queue_account_two.last_player;
+            game_queue_account_three.num_players_in_queue = game_queue_account_two.num_players_in_queue;
+
+            game_queue_account_two.current_player = temp_current_player;
+            game_queue_account_two.last_player = temp_last_player;
+            game_queue_account_two.num_players_in_queue = temp_queue_length;
+        }
+
+        // swap queues 1 and 2 if 2 has more members than 1
+        if game_queue_account_two.num_players_in_queue > game_queue_account_one.num_players_in_queue {
+            let temp_current_player = game_queue_account_two.current_player;
+            let temp_last_player = game_queue_account_two.last_player;
+            let temp_queue_length = game_queue_account_two.num_players_in_queue;
+
+            // swap
+            game_queue_account_two.current_player = game_queue_account_one.current_player;
+            game_queue_account_two.last_player = game_queue_account_one.last_player;
+            game_queue_account_two.num_players_in_queue = game_queue_account_one.num_players_in_queue;
+
+            game_queue_account_one.current_player = temp_current_player;
+            game_queue_account_one.last_player = temp_last_player;
+            game_queue_account_one.num_players_in_queue = temp_queue_length;
+        }
+
         Ok(())
     }
 
@@ -627,25 +1145,6 @@ struct AdvanceFourPlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
-pub struct FinishGameQueue<'info> {
-    #[account(mut,
-        close = game_account,
-        constraint = game_queue_account.next_player.unwrap() == current_player.key()
-    )]
-    pub current_player: Account<'info, Player>,
-    #[account(mut,
-        close = game_account,
-        constraint = game_queue_account.key() == game_account.game_queue.unwrap(),
-        constraint = game_queue_account.last_player.unwrap() == current_player.key()
-    )]
-    pub game_queue_account: Account<'info, GameQueue>,
-    #[account(mut, constraint = game_account.key() == game_queue_account.game)]
-    pub game_account: Account<'info, Game>,
-    pub authority: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
 pub struct FinishOnePlayerGameQueue<'info> {
     #[account(
         mut,
@@ -710,6 +1209,445 @@ pub struct FinishTwoPlayerGameQueue<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct FinishThreePlayerGameQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_one.next_player == None
+    )]
+    pub current_player_one: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_two.next_player == None
+    )]
+    pub current_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_three.next_player == None
+    )]
+    pub current_player_three: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_one.current_player == current_player_one.key(),
+        constraint = game_queue_account_one.last_player == current_player_one.key(),
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_two.current_player == current_player_two.key(),
+        constraint = game_queue_account_two.last_player == current_player_two.key(),
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_three.current_player == current_player_three.key(),
+        constraint = game_queue_account_three.last_player == current_player_three.key(),
+        constraint = game_queue_account_three.game == game_account.key()
+    )]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinishFourPlayerGameQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_one.next_player == None
+    )]
+    pub current_player_one: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_two.next_player == None
+    )]
+    pub current_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_three.next_player == None
+    )]
+    pub current_player_three: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_four.next_player == None
+    )]
+    pub current_player_four: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_one.current_player == current_player_one.key(),
+        constraint = game_queue_account_one.last_player == current_player_one.key(),
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_two.current_player == current_player_two.key(),
+        constraint = game_queue_account_two.last_player == current_player_two.key(),
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_three.current_player == current_player_three.key(),
+        constraint = game_queue_account_three.last_player == current_player_three.key(),
+        constraint = game_queue_account_three.game == game_account.key()
+    )]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_four.current_player == current_player_four.key(),
+        constraint = game_queue_account_four.last_player == current_player_four.key(),
+        constraint = game_queue_account_four.game == game_account.key()
+    )]
+    pub game_queue_account_four: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key(),
+        constraint = (*game_account.game_queues.get(3).unwrap()) == game_queue_account_four.key(),
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AdvanceTwoPlayerKingOfHillQueue<'info> {
+    #[account(mut)]
+    pub winning_player: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player: Account<'info, Player>,
+    #[account(
+        mut,
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AdvanceThreePlayerKingOfHillQueue<'info> {
+    #[account(mut)]
+    pub winning_player: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_one: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_three.game == game_account.key()
+    )]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AdvanceFourPlayerKingOfHillQueue<'info> {
+    pub winning_player: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_one: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_two: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_three: Account<'info, Player>,
+    #[account(
+        mut,
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_three.game == game_account.key()
+    )]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_four.game == game_account.key()
+    )]
+    pub game_queue_account_four: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key(),
+        constraint = (*game_account.game_queues.get(3).unwrap()) == game_queue_account_four.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct AdvanceTeamKingOfHillQueue<'info> {
+    pub winning_player_one: Account<'info, Player>,
+    pub winning_player_two: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_one: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_three.game == game_account.key()
+    )]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_four.game == game_account.key()
+    )]
+    pub game_queue_account_four: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key(),
+        constraint = (*game_account.game_queues.get(3).unwrap()) == game_queue_account_four.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinishTwoPlayerKingOfHillQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = winning_player.wallet_key == game_account.key()
+    )]
+    pub winning_player: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinishThreePlayerKingOfHillQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = winning_player.wallet_key == game_account.key()
+    )]
+    pub winning_player: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_one: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_three.game == game_account.key()
+    )]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinishFourPlayerKingOfHillQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = winning_player.wallet_key == game_account.key()
+    )]
+    pub winning_player: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_one: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_two: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_three: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_three.game == game_account.key()
+    )]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_four.game == game_account.key()
+    )]
+    pub game_queue_account_four: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key(),
+        constraint = (*game_account.game_queues.get(3).unwrap()) == game_queue_account_four.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinishTeamKingOfHillQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = winning_player_one.wallet_key == game_account.key()
+    )]
+    pub winning_player_one: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = winning_player_two.wallet_key == game_account.key()
+    )]
+    pub winning_player_two: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_one: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub losing_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_three.game == game_account.key()
+    )]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_queue_account_four.game == game_account.key()
+    )]
+    pub game_queue_account_four: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key(),
+        constraint = (*game_account.game_queues.get(3).unwrap()) == game_queue_account_four.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 #[account]
 /// The ArcadeState is the account that points to the most current game uploaded to the arcade.
 /// 
@@ -755,10 +1693,11 @@ pub struct GameQueue {
     pub game: Pubkey,
     pub current_player: Pubkey,
     pub last_player: Pubkey,
+    pub num_players_in_queue: u128,
 }
 
 impl GameQueue {
-    pub const MAX_SIZE: usize = mem::size_of::<Pubkey>() + (2 * mem::size_of::<Pubkey>());
+    pub const MAX_SIZE: usize = mem::size_of::<Pubkey>() + (2 * mem::size_of::<Pubkey>()) + mem::size_of::<u128>();
 }
 
 #[account]
@@ -835,4 +1774,7 @@ pub enum Errors {
 
     #[msg("The game queue given does not exist in the game queues")]
     GameQueueDoesNotExist,
+
+    #[msg("Cannot advance game queue with incorrect players provided")]
+    CannotAdvanceGameQueueIncorrectPlayers,
 }
