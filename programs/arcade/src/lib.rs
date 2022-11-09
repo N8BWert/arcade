@@ -210,11 +210,14 @@ pub mod arcade {
         Ok(())
     }
 
-    pub fn advance_one_player_game_queue(ctx: Context<AdvanceOnePlayerGameQueue>) -> ProgramResult {
-        let next_player = &mut ctx.accounts.next_player;
+    pub fn advance_one_player_game_queue(ctx: Context<AdvanceOnePlayerGameQueue>) -> Result<()> {
+        let current_player = &mut ctx.accounts.current_player;
         let game_queue_account = &mut ctx.accounts.game_queue_account;
 
-        game_queue_account.current_player = next_player.key();
+        (game_queue_account.current_player, game_queue_account.num_players_in_queue) = match current_player.next_player {
+            Some(player) => (player, game_queue_account.num_players_in_queue - 1),
+            None => (game_account.key(), 0),
+        };
 
         Ok(())
     }
@@ -324,14 +327,22 @@ pub mod arcade {
         Ok(())
     }
 
-    pub fn advance_two_player_game_queue(ctx: Context<AdvanceTwoPlayerGameQueue>) -> ProgramResult {
-        let next_player_1 = &mut ctx.accounts.next_player_one;
-        let next_player_2 = &mut ctx.accounts.next_player_two;
-        let game_queue_account_1 = &mut ctx.accounts.game_queue_account_one;
-        let game_queue_account_2 = &mut ctx.accounts.game_queue_account_two;
+    pub fn advance_two_player_game_queue(ctx: Context<AdvanceTwoPlayerGameQueue>) -> Result<()> {
+        let player_one = &mut ctx.accounts.player_one;
+        let player_two = &mut ctx.accounts.player_two;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_account = & ctx.accounts.game_account;
 
-        game_queue_account_1.current_player = next_player_1.key();
-        game_queue_account_2.current_player = next_player_2.key();
+        (game_queue_account_one.current_player, game_queue_account_one.num_players_in_queue) = match player_one.next_player {
+            Some(player) => (player, game_queue_account_one.num_players_in_queue - 1),
+            None => (game_account.key(), 0),
+        };
+
+        (game_queue_account_two.current_player, game_queue_account_two.num_players_in_queue) = match player_two.next_player {
+            Some(player) => (player, game_queue_account_two.num_players_in_queue - 1),
+            None => (game_account.key(), 0),
+        };
 
         Ok(())
     }
@@ -533,16 +544,28 @@ pub mod arcade {
     }
 
     pub fn advance_three_player_game_queue(ctx: Context<AdvanceThreePlayerGameQueue>) -> ProgramResult {
-        let next_player_1 = &mut ctx.accounts.next_player_one;
-        let next_player_2 = &mut ctx.accounts.next_player_two;
-        let next_player_3 = &mut ctx.accounts.next_player_three;
-        let game_queue_account_1 = &mut ctx.accounts.game_queue_account_one;
-        let game_queue_account_2 = &mut ctx.accounts.game_queue_account_two;
-        let game_queue_account_3 = &mut ctx.accounts.game_queue_account_three;
+        let player_one = &mut ctx.accounts.player_one;
+        let player_two = &mut ctx.accounts.player_two;
+        let player_three = &mut ctx.accounts.player_three;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
+        let game_account = & ctx.accounts.game_account;
 
-        game_queue_account_1.current_player = next_player_1.key();
-        game_queue_account_2.current_player = next_player_2.key();
-        game_queue_account_3.current_player = next_player_3.key();
+        (game_queue_account_one.current_player, game_queue_account_one.num_players_in_queue) = match player_one.next_player {
+            Some(player) => (player, game_queue_account_one.num_players_in_queue - 1),
+            None => (game_account.key(), 0),
+        };
+
+        (game_queue_account_two.current_player, game_queue_account_two.num_players_in_queue) = match player_two.next_player {
+            Some(player) => (player, game_queue_account_two.num_players_in_queue - 1),
+            None => (game_account.key(), 0),
+        };
+
+        (game_queue_account_three.current_player, game_queue_account_three.num_players_in_queue) = match player_three.next_player {
+            Some(player) => (player, game_queue_account_three.num_players_in_queue - 1),
+            None => (game_account.key(), 0),
+        };
 
         Ok(())
     }
@@ -1524,14 +1547,8 @@ pub struct JoinOnePlayerGameQueue<'info> {
 // looses.  Or possibly the transfer happens earlier (not sure just check this).
 #[derive(Accounts)]
 pub struct AdvanceOnePlayerGameQueue<'info> {
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player.next_player.unwrap() == next_player.key()
-    )]
+    #[account(mut, close = game_account)]
     pub current_player: Account<'info, Player>,
-    #[account(mut)]
-    pub next_player: Account<'info, Player>,
     #[account(
         mut,
         constraint = game_queue_account.current_player == current_player.key(),
@@ -1624,31 +1641,19 @@ pub struct JoinTwoPlayerGameQueue<'info> {
 
 #[derive(Accounts)]
 pub struct AdvanceTwoPlayerGameQueue<'info> {
+    #[account(mut, close = game_account)]
+    pub player_one: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub player_two: Account<'info, Player>,
     #[account(
         mut,
-        close = game_account,
-        constraint = current_player_one.next_player.unwrap() == next_player_one.key()
-    )]
-    pub current_player_one: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player_two.next_player.unwrap() == next_player_two.key()
-    )]
-    pub current_player_two: Account<'info, Player>,
-    #[account(mut)]
-    pub next_player_one: Account<'info, Player>,
-    #[account(mut)]
-    pub next_player_two: Account<'info, Player>,
-    #[account(
-        mut,
-        constraint = game_queue_account_one.current_player == current_player_one.key(),
+        constraint = game_queue_account_one.current_player == player_one.key(),
         constraint = game_queue_account_one.game == game_account.key()
     )]
     pub game_queue_account_one: Account<'info, GameQueue>,
     #[account(
         mut,
-        constraint = game_queue_account_two.current_player == current_player_two.key(),
+        constraint = game_queue_account_two.current_player == player_two.key(),
         constraint = game_queue_account_two.game == game_account.key()
     )]
     pub game_queue_account_two: Account<'info, GameQueue>,
@@ -1822,45 +1827,27 @@ pub struct JoinThreePlayerGameQueue<'info> {
 
 #[derive(Accounts)]
 pub struct AdvanceThreePlayerGameQueue<'info> {
+    #[account(mut, close = game_account)]
+    pub player_one: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub player_two: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub player_three: Account<'info, Player>,
     #[account(
         mut,
-        close = game_account,
-        constraint = current_player_one.next_player.unwrap() == next_player_one.key()
-    )]
-    pub current_player_one: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player_two.next_player.unwrap() == next_player_two.key()
-    )]
-    pub current_player_two: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player_three.next_player.unwrap() == next_player_three.key()
-    )]
-    pub current_player_three: Account<'info, Player>,
-    #[account(mut)]
-    pub next_player_one: Account<'info, Player>,
-    #[account(mut)]
-    pub next_player_two: Account<'info, Player>,
-    #[account(mut)]
-    pub next_player_three: Account<'info, Player>,
-    #[account(
-        mut,
-        constraint = game_queue_account_one.current_player == current_player_one.key(),
+        constraint = game_queue_account_one.current_player == player_one.key(),
         constraint = game_queue_account_one.game == game_account.key()
     )]
     pub game_queue_account_one: Account<'info, GameQueue>,
     #[account(
         mut,
-        constraint = game_queue_account_two.current_player == current_player_two.key(),
+        constraint = game_queue_account_two.current_player == player_two.key(),
         constraint = game_queue_account_two.game == game_account.key()
     )]
     pub game_queue_account_two: Account<'info, GameQueue>,
     #[account(
         mut,
-        constraint = game_queue_account_three.current_player == current_player_three.key(),
+        constraint = game_queue_account_three.current_player == player_three.key(),
         constraint = game_queue_account_three.game == game_account.key()
     )]
     pub game_queue_account_three: Account<'info, GameQueue>,
