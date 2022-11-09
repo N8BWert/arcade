@@ -277,22 +277,6 @@ pub mod arcade {
         Ok(())
     }
 
-    pub fn finish_one_player_game_queue(ctx: Context<FinishOnePlayerGameQueue>) -> ProgramResult {
-        Ok(())
-    }
-
-    pub fn finish_two_player_game_queue(ctx: Context<FinishTwoPlayerGameQueue>) -> ProgramResult {
-        Ok(())
-    }
-
-    pub fn finish_three_player_game_queue(ctx: Context<FinishThreePlayerGameQueue>) -> ProgramResult {
-        Ok(())
-    }
-
-    pub fn finish_four_player_game_queue(ctx: Context<FinishFourPlayerGameQueue>) -> ProgramResult {
-        Ok(())
-    }
-
     pub fn advance_two_player_king_of_hill_queue(ctx: Context<AdvanceTwoPlayerKingOfHillQueue>) -> Result<()> {
         let winning_player = &mut ctx.accounts.winning_player;
         let losing_player = &mut ctx.accounts.losing_player;
@@ -796,6 +780,143 @@ pub mod arcade {
             game_queue_account_one.num_players_in_queue = temp_queue_length;
         }
 
+        Ok(())
+    }
+
+    /// We have given up on making the queue flow smoothly, basically you will register in queue for a specific team and wait for the people in front of
+    /// you to fail.
+    /// 
+    /// TODO: Maybe we can fix the queue advancing but it honestly looks quite difficult.
+    pub fn advance_team_king_of_hill_queue(ctx: Context<AdvanceTeamKingOfHillQueue>) -> Result<()> {
+        let winning_player_one = &mut ctx.accounts.winning_player_one;
+        let winning_player_two = &mut ctx.accounts.winning_player_two;
+        let losing_player_one = &mut ctx.accounts.losing_player_one;
+        let losing_player_two = &mut ctx.accounts.losing_player_two;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
+        let game_queue_account_four = &mut ctx.accounts.game_queue_account_four;
+        let game_account = & ctx.accounts.game_account;
+
+        let mut queue_mapping_vec = vec![0, 0, 0, 0];
+
+        let winning_player_one_key = winning_player_one.key();
+        let winning_player_two_key = winning_player_two.key();
+        let losing_player_one_key = losing_player_one.key();
+        let losing_player_two_key = losing_player_two.key();
+
+        queue_mapping_vec[0] = match game_queue_account_one.current_player {
+            winning_player_one_key => 1,
+            winning_player_two_key => 2,
+            losing_player_one_key => 3,
+            losing_player_two_key => 4,
+            _ => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
+        };
+
+        queue_mapping_vec[1] = match game_queue_account_two.current_player {
+            winning_player_one_key => 1,
+            winning_player_two_key => 2,
+            losing_player_one_key => 3,
+            losing_player_two_key => 4,
+            _ => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
+        };
+
+        queue_mapping_vec[2] = match game_queue_account_three.current_player {
+            winning_player_one_key => 1,
+            winning_player_two_key => 2,
+            losing_player_one_key => 3,
+            losing_player_two_key => 4,
+            _ => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
+        };
+
+        queue_mapping_vec[3] = match game_queue_account_four.current_player {
+            winning_player_one_key => 1,
+            winning_player_two_key => 2,
+            losing_player_one_key => 3,
+            losing_player_two_key => 4,
+            _ => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
+        };
+
+        match (queue_mapping_vec[0], queue_mapping_vec[1], queue_mapping_vec[2], queue_mapping_vec[3]) {
+            (1, 2, 3, 4) | (2, 1, 3, 4) => {
+                (game_queue_account_three.current_player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue) = match losing_player_one.next_player {
+                    Some(player) => (player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue - 1),
+                    None => (game_account.key(), game_account.key(), 0),
+                };
+
+                (game_queue_account_four.current_player, game_queue_account_four.last_player, game_queue_account_four.num_players_in_queue) = match losing_player_two.next_player {
+                    Some(player) => (player, game_queue_account_four.last_player, game_queue_account_four.num_players_in_queue - 1),
+                    None => (game_account.key(), game_account.key(), 0),
+                };
+            },
+            (1, 2, 4, 3) | (2, 1, 4, 3) => {
+                (game_queue_account_three.current_player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue) = match losing_player_two.next_player {
+                    Some(player) => (player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue - 1),
+                    None => (game_account.key(), game_account.key(), 0),
+                };
+
+                (game_queue_account_four.current_player, game_queue_account_four.last_player, game_queue_account_four.num_players_in_queue) = match losing_player_one.next_player {
+                    Some(player) => (player, game_queue_account_four.last_player, game_queue_account_four.num_players_in_queue - 1),
+                    None => (game_account.key(), game_account.key(), 0),
+                };
+            },
+            (3, 4, 1, 2) | (3, 4, 2, 1) => {
+                (game_queue_account_one.current_player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue) = match losing_player_one.next_player {
+                    Some(player) => (player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue - 1),
+                    None => (game_account.key(), game_account.key(), 0),
+                };
+
+                (game_queue_account_two.current_player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue) = match losing_player_two.next_player {
+                    Some(player) => (player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue - 1),
+                    None => (game_account.key(), game_account.key(), 0),
+                };
+            },
+            (4, 3, 1, 2) | (4, 3, 2, 1) => {
+                (game_queue_account_one.current_player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue) = match losing_player_two.next_player {
+                    Some(player) => (player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue - 1),
+                    None => (game_account.key(), game_account.key(), 0),
+                };
+
+                (game_queue_account_two.current_player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue) = match losing_player_one.next_player {
+                    Some(player) => (player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue - 1),
+                    None => (game_account.key(), game_account.key(), 0),
+                };
+            },
+            _ => return Err(Errors::UnknownTeamQueueOrganization.into()),
+        };
+
+        Ok(())
+    }
+
+    pub fn finish_one_player_game_queue(ctx: Context<FinishOnePlayerGameQueue>) -> ProgramResult {
+        Ok(())
+    }
+
+    pub fn finish_two_player_game_queue(ctx: Context<FinishTwoPlayerGameQueue>) -> ProgramResult {
+        Ok(())
+    }
+
+    pub fn finish_three_player_game_queue(ctx: Context<FinishThreePlayerGameQueue>) -> ProgramResult {
+        Ok(())
+    }
+
+    pub fn finish_four_player_game_queue(ctx: Context<FinishFourPlayerGameQueue>) -> ProgramResult {
+        Ok(())
+    }
+
+    pub fn finish_two_player_king_of_hill_queue(ctx: Context<FinishTwoPlayerKingOfHillQueue>) -> ProgramResult {
+        Ok(())
+    }
+
+    pub fn finish_three_player_king_of_hill_queue(ctx: Context<FinishThreePlayerKingOfHillQueue>) -> ProgramResult {
+        Ok(())
+    }
+
+    pub fn finish_four_player_king_of_hill_queue(ctx: Context<FinishFourPlayerKingOfHillQueue>) -> ProgramResult {
+        Ok(())
+    }
+
+    pub fn finish_team_king_of_hill_queue(ctx: Context<FinishTeamKingOfHillQueue>) -> ProgramResult {
         Ok(())
     }
 
@@ -1396,6 +1517,7 @@ pub struct AdvanceThreePlayerKingOfHillQueue<'info> {
 
 #[derive(Accounts)]
 pub struct AdvanceFourPlayerKingOfHillQueue<'info> {
+    #[account(mut)]
     pub winning_player: Account<'info, Player>,
     #[account(mut, close = game_account)]
     pub losing_player_one: Account<'info, Player>,
@@ -1437,7 +1559,9 @@ pub struct AdvanceFourPlayerKingOfHillQueue<'info> {
 
 #[derive(Accounts)]
 pub struct AdvanceTeamKingOfHillQueue<'info> {
+    #[account(mut)]
     pub winning_player_one: Account<'info, Player>,
+    #[account(mut)]
     pub winning_player_two: Account<'info, Player>,
     #[account(mut, close = game_account)]
     pub losing_player_one: Account<'info, Player>,
@@ -1777,4 +1901,7 @@ pub enum Errors {
 
     #[msg("Cannot advance game queue with incorrect players provided")]
     CannotAdvanceGameQueueIncorrectPlayers,
+
+    #[msg("Unknown team queue organization please restructure and try again")]
+    UnknownTeamQueueOrganization,
 }
