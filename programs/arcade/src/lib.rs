@@ -142,85 +142,69 @@ pub mod arcade {
         Ok(())
     }
 
-    pub fn initialize_game_queue(ctx: Context<InitGameQueue>) -> Result<()> {
+    pub fn init_one_player_game_queue(ctx: Context<InitOnePlayerGameQueue>) -> ProgramResult {
         let game_queue_account = &mut ctx.accounts.game_queue_account;
         let player_account = &mut ctx.accounts.player_account;
         let game_account = &mut ctx.accounts.game_account;
         let payer = &mut ctx.accounts.payer;
 
-        for i in 0..(game_account.max_players as usize) {
-            if game_account.game_queues.get(i) == None {
-                let ix = anchor_lang::solana_program::system_instruction::transfer(
-                    &payer.key(),
-                    &game_account.key(),
-                    TWENTY_FIVE_CENTS,
-                );
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
 
-                anchor_lang::solana_program::program::invoke(
-                    &ix,
-                    &[
-                        payer.to_account_info(),
-                        game_account.to_account_info(),
-                    ],
-                )?;
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
 
-                player_account.wallet_key = payer.key();
-                player_account.next_player = None;
+        player_account.wallet_key = payer.key();
+        player_account.next_player = None;
 
-                game_queue_account.game = game_account.key();
-                game_queue_account.current_player = player_account.key();
-                game_queue_account.last_player = player_account.key();
+        game_queue_account.game = game_account.key();
+        game_queue_account.current_player = player_account.key();
+        game_queue_account.last_player = player_account.key();
 
-                game_account.game_queues.push(game_queue_account.key());
+        game_account.game_queues.push(game_queue_account.key());
 
-                return Ok(());
-            }
-        }
-
-        Err(Errors::AlreadyInitializedGameQueue.into())
+        Ok(())
     }
 
-    /// This function will be called by the webgl program to allow users to enter the game queue
-    /// 
-    /// Note: This code probably doesn't work so we'll need to test this a bit
-    pub fn join_game_queue(ctx: Context<JoinGameQueue>) -> Result<()> {
+    pub fn join_one_player_game_queue(ctx: Context<JoinOnePlayerGameQueue>) -> ProgramResult {
         let player_account = &mut ctx.accounts.player_account;
-        let game_account = &mut ctx.accounts.game_account;
-        let game_queue_account = &mut ctx.accounts.game_queue_account;
         let last_player = &mut ctx.accounts.last_player;
+        let game_queue_account = &mut ctx.accounts.game_queue_account;
+        let game_account = &mut ctx.accounts.game_account;
         let payer = &mut ctx.accounts.payer;
 
-        if let Some(queue) = game_account.game_queues.get(game_account.next_queue_addition_idx as usize) {
-            if queue.key() == game_queue_account.key() {
-                let ix = anchor_lang::solana_program::system_instruction::transfer(
-                    &payer.key(),
-                    &game_account.key(),
-                    TWENTY_FIVE_CENTS,
-                );
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
 
-                anchor_lang::solana_program::program::invoke(
-                    &ix,
-                    &[
-                        payer.to_account_info(),
-                        game_account.to_account_info(),
-                    ],
-                )?;
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
 
-                player_account.wallet_key = payer.key();
-                player_account.next_player = None;
+        player_account.wallet_key = payer.key();
+        player_account.next_player = None;
 
-                last_player.next_player = Some(player_account.key());
+        last_player.next_player = Some(player_account.key());
 
-                game_queue_account.last_player = player_account.key();
+        game_queue_account.last_player = player_account.key();
 
-                return Ok(());
-            } else {
-                // TODO: Make this error message better
-                return Err(Errors::GameQueueDoesNotExist.into());
-            }
-        }
+        // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
 
-        return Err(Errors::GameQueueDoesNotExist.into());
+        Ok(())
     }
 
     pub fn advance_one_player_game_queue(ctx: Context<AdvanceOnePlayerGameQueue>) -> ProgramResult {
@@ -228,6 +212,111 @@ pub mod arcade {
         let game_queue_account = &mut ctx.accounts.game_queue_account;
 
         game_queue_account.current_player = next_player.key();
+
+        Ok(())
+    }
+
+    pub fn finish_one_player_game_queue(ctx: Context<FinishOnePlayerGameQueue>) -> ProgramResult {
+        let game_account = &mut ctx.accounts.game_account;
+
+        game_account.game_queues.pop();
+
+        Ok(())
+    }
+
+    pub fn init_two_player_game_queue(ctx: Context<InitTwoPlayerGameQueue>) -> ProgramResult {
+        let player_account = &mut ctx.accounts.player_account;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_account = &mut ctx.accounts.game_account;
+        let payer = &mut ctx.accounts.payer;
+
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
+
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
+
+        player_account.wallet_key = payer.key();
+        player_account.next_player = None;
+        
+        game_queue_account_one.game = game_account.key();
+        game_queue_account_one.current_player = player_account.key();
+        game_queue_account_one.last_player = player_account.key();
+        game_queue_account_one.num_players_in_queue = 1;
+
+        game_queue_account_two.game = game_account.key();
+        game_queue_account_two.current_player = game_account.key();
+        game_queue_account_two.last_player = game_account.key();
+        game_queue_account_two.num_players_in_queue = 0;
+
+        game_account.game_queues.push(game_queue_account_one.key());
+        game_account.game_queues.push(game_queue_account_two.key());
+
+        Ok(())
+    }
+
+    pub fn join_two_player_game_queue(ctx: Context<JoinTwoPlayerGameQueue>) -> Result<()> {
+        let player_account = &mut ctx.accounts.player_account;
+        let q1_last_player = &mut ctx.accounts.q1_last_player;
+        let q2_last_player = &mut ctx.accounts.q2_last_player;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_account = &mut ctx.accounts.game_account;
+        let payer = &mut ctx.accounts.payer;
+
+        if game_queue_account_two.current_player != game_account.key() &&
+           game_queue_account_two.last_player != q2_last_player.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        }
+
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
+
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
+
+        player_account.wallet_key = payer.key();
+        player_account.next_player = None;
+
+        if q1_last_player.key() == q2_last_player.key() {
+            // Add new player as player 2
+            game_queue_account_two.current_player == player_account.key();
+            game_queue_account_two.last_player = player_account.key();
+            game_queue_account_two.num_players_in_queue = 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        } else if game_queue_account_one.num_players_in_queue == game_queue_account_two.num_players_in_queue {
+            // Add new player behind current player 1
+            q1_last_player.next_player = Some(player_account.key());
+            game_queue_account_one.last_player = player_account.key();
+            game_queue_account_one.num_players_in_queue += 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        } else {
+            // Add new player behind current player 2
+            q2_last_player.next_player = Some(player_account.key());
+            game_queue_account_two.last_player = player_account.key();
+            game_queue_account_two.num_players_in_queue += 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        }
 
         Ok(())
     }
@@ -240,6 +329,148 @@ pub mod arcade {
 
         game_queue_account_1.current_player = next_player_1.key();
         game_queue_account_2.current_player = next_player_2.key();
+
+        Ok(())
+    }
+
+    pub fn finish_two_player_game_queue(ctx: Context<FinishTwoPlayerGameQueue>) -> ProgramResult {
+        let game_account = &mut ctx.accounts.game_account;
+
+        for i in 0..2 {
+            game_account.game_queues.pop();
+        }
+
+        Ok(())
+    }
+
+    pub fn init_three_player_game_queue(ctx: Context<InitThreePlayerGameQueue>) -> ProgramResult {
+        let player_account = &mut ctx.accounts.player_account;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
+        let game_account = &mut ctx.accounts.game_account;
+        let payer = &mut ctx.accounts.payer;
+
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
+
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
+
+        player_account.wallet_key = payer.key();
+        player_account.next_player = None;
+
+        game_queue_account_one.game = game_account.key();
+        game_queue_account_one.current_player = player_account.key();
+        game_queue_account_one.last_player = player_account.key();
+        game_queue_account_one.num_players_in_queue = 1;
+
+        game_queue_account_two.game = game_account.key();
+        game_queue_account_two.current_player = player_account.key();
+        game_queue_account_two.last_player = player_account.key();
+        game_queue_account_two.num_players_in_queue = 0;
+
+        game_queue_account_three.game = game_account.key();
+        game_queue_account_three.current_player = player_account.key();
+        game_queue_account_three.last_player = player_account.key();
+        game_queue_account_three.num_players_in_queue = 0;
+
+        game_account.game_queues.push(game_queue_account_one.key());
+        game_account.game_queues.push(game_queue_account_two.key());
+        game_account.game_queues.push(game_queue_account_three.key());
+
+        Ok(())
+    }
+
+    pub fn join_three_player_game_queue(ctx: Context<JoinThreePlayerGameQueue>) -> Result<()> {
+        let player_account = &mut ctx.accounts.player_account;
+        let q1_last_player = &mut ctx.accounts.q1_last_player;
+        let q2_last_player = &mut ctx.accounts.q2_last_player;
+        let q3_last_player = &mut ctx.accounts.q3_last_player;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
+        let game_account = &mut ctx.accounts.game_account;
+        let payer = &mut ctx.accounts.payer;
+
+        if game_queue_account_two.current_player != game_account.key() &&
+           game_queue_account_two.last_player != q2_last_player.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        } else if game_queue_account_three.current_player != game_account.key() &&
+                  game_queue_account_three.last_player != q3_last_player.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        }
+
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
+
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
+
+        player_account.wallet_key = payer.key();
+        player_account.next_player = None;
+
+        if game_queue_account_two.current_player == game_account.key() {
+            // Add a new player as player 2
+            game_queue_account_two.current_player = player_account.key();
+            game_queue_account_two.last_player = player_account.key();
+            game_queue_account_two.num_players_in_queue = 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+
+            return Ok(());
+        }
+
+        if game_queue_account_three.current_player == game_account.key() {
+            // Add a new player as player 3
+            game_queue_account_three.current_player = player_account.key();
+            game_queue_account_three.last_player = player_account.key();
+            game_queue_account_three.num_players_in_queue = 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+
+            return Ok(());
+        }
+
+        if game_queue_account_one.num_players_in_queue == game_queue_account_two.num_players_in_queue &&
+           game_queue_account_two.num_players_in_queue == game_queue_account_three.num_players_in_queue {
+            // Add a new player behind player 1.
+            q1_last_player.next_player = Some(player_account.key());
+            game_queue_account_one.last_player = player_account.key();
+            game_queue_account_one.num_players_in_queue += 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        } else if game_queue_account_two.num_players_in_queue == game_queue_account_three.num_players_in_queue {
+            // Add a new player behind player 2.
+            q2_last_player.next_player = Some(player_account.key());
+            game_queue_account_two.last_player = player_account.key();
+            game_queue_account_two.num_players_in_queue += 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        } else {
+            // Add a new player behind player 3.
+            q3_last_player.next_player = Some(player_account.key());
+            game_queue_account_two.last_player = player_account.key();
+            game_queue_account_two.num_players_in_queue += 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        }
 
         Ok(())
     }
@@ -259,6 +490,167 @@ pub mod arcade {
         Ok(())
     }
 
+    pub fn finish_three_player_game_queue(ctx: Context<FinishThreePlayerGameQueue>) -> ProgramResult {
+        let game_account = &mut ctx.accounts.game_account;
+
+        for i in 0..3 {
+            game_account.game_queues.pop();
+        }
+
+        Ok(())
+    }
+
+    pub fn init_four_player_game_queue(ctx: Context<InitFourPlayerGameQueue>) -> ProgramResult {
+        let player_account = &mut ctx.accounts.player_account;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
+        let game_queue_account_four = &mut ctx.accounts.game_queue_account_four;
+        let game_account = &mut ctx.accounts.game_account;
+        let payer = &mut ctx.accounts.payer;
+
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
+
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
+
+        player_account.wallet_key = payer.key();
+        player_account.next_player = None;
+
+        game_queue_account_one.game = game_account.key();
+        game_queue_account_one.current_player = player_account.key();
+        game_queue_account_one.last_player = player_account.key();
+        game_queue_account_one.num_players_in_queue = 1;
+
+        game_queue_account_two.game = game_account.key();
+        game_queue_account_two.current_player = game_account.key();
+        game_queue_account_two.last_player = game_account.key();
+        game_queue_account_two.num_players_in_queue = 0;
+
+        game_queue_account_three.game = game_account.key();
+        game_queue_account_three.current_player = game_account.key();
+        game_queue_account_three.last_player = game_account.key();
+        game_queue_account_three.num_players_in_queue = 0;
+
+        game_queue_account_four.game = game_account.key();
+        game_queue_account_four.current_player = game_account.key();
+        game_queue_account_four.last_player = game_account.key();
+        game_queue_account_four.num_players_in_queue = 0;
+
+        game_account.game_queues.push(game_queue_account_one.key());
+        game_account.game_queues.push(game_queue_account_two.key());
+        game_account.game_queues.push(game_queue_account_three.key());
+        game_account.game_queues.push(game_queue_account_four.key());
+        
+        Ok(())
+    }
+
+    pub fn join_four_player_game_queue(ctx: Context<JoinFourPlayerGameQueue>) -> Result<()> {
+        let player_account = &mut ctx.accounts.player_account;
+        let q1_last_player = &mut ctx.accounts.q1_last_player;
+        let q2_last_player = &mut ctx.accounts.q2_last_player;
+        let q3_last_player = &mut ctx.accounts.q3_last_player;
+        let q4_last_player = &mut ctx.accounts.q4_last_player;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
+        let game_queue_account_four = &mut ctx.accounts.game_queue_account_four;
+        let game_account = &mut ctx.accounts.game_account;
+        let payer = &mut ctx.accounts.payer;
+
+        if game_queue_account_two.current_player != game_account.key() &&
+           game_queue_account_two.last_player != q2_last_player.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        } else if game_queue_account_three.current_player != game_account.key() &&
+                  game_queue_account_three.last_player != q3_last_player.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        } else if game_queue_account_four.current_player != game_account.key() &&
+                  game_queue_account_four.last_player != q4_last_player.key() {
+            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        }
+
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
+
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
+
+        player_account.wallet_key = payer.key();
+        player_account.next_player = None;
+
+        if game_queue_account_two.current_player == game_account.key() {
+            // Add a new player as player 2
+            game_queue_account_two.current_player = player_account.key();
+            game_queue_account_two.last_player = player_account.key();
+            game_queue_account_two.num_players_in_queue = 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        } else if game_queue_account_three.current_player == game_account.key() {
+            // Add a new player as player 3
+            game_queue_account_three.current_player = player_account.key();
+            game_queue_account_three.last_player = player_account.key();
+            game_queue_account_three.num_players_in_queue = 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        } else if game_queue_account_four.current_player == game_account.key() {
+            // Add a new player as player 4
+            game_queue_account_four.current_player = player_account.key();
+            game_queue_account_four.last_player = player_account.key();
+            game_queue_account_four.num_players_in_queue = 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        } else if game_queue_account_one.num_players_in_queue == game_queue_account_two.num_players_in_queue &&
+                  game_queue_account_two.num_players_in_queue == game_queue_account_three.num_players_in_queue &&
+                  game_queue_account_three.num_players_in_queue == game_queue_account_four.num_players_in_queue {
+            // Add a new player behind player 1.
+            q1_last_player.next_player = Some(player_account.key());
+            game_queue_account_one.last_player = player_account.key();
+            game_queue_account_one.num_players_in_queue += 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        } else if game_queue_account_two.num_players_in_queue == game_queue_account_three.num_players_in_queue &&
+                  game_queue_account_three.num_players_in_queue == game_queue_account_four.num_players_in_queue {
+            // Add a new player behind player 2
+            q2_last_player.next_player = Some(player_account.key());
+            game_queue_account_two.last_player = player_account.key();
+            game_queue_account_two.num_players_in_queue += 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        } else if game_queue_account_three.num_players_in_queue == game_queue_account_four.num_players_in_queue {
+            // Add a new player behind player 3
+            q3_last_player.next_player = Some(player_account.key());
+            game_queue_account_three.last_player = player_account.key();
+            game_queue_account_three.num_players_in_queue += 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        } else {
+            q4_last_player.next_player = Some(player_account.key());
+            game_queue_account_four.last_player = player_account.key();
+            game_queue_account_four.num_players_in_queue += 1;
+
+            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        }
+
+        Ok(())
+    }
+
     pub fn advance_four_player_game_queue(ctx: Context<AdvanceFourPlayerGameQueue>) -> ProgramResult {
         let next_player_1 = &mut ctx.accounts.next_player_one;
         let next_player_2 = &mut ctx.accounts.next_player_two;
@@ -273,6 +665,16 @@ pub mod arcade {
         game_queue_account_2.current_player = next_player_2.key();
         game_queue_account_3.current_player = next_player_3.key();
         game_queue_account_4.current_player = next_player_4.key();
+
+        Ok(())
+    }
+
+    pub fn finish_four_player_game_queue(ctx: Context<FinishFourPlayerGameQueue>) -> ProgramResult {
+        let game_account = &mut ctx.accounts.game_account;
+
+        for i in 0..4 {
+            game_account.game_queues.pop();
+        }
 
         Ok(())
     }
@@ -888,22 +1290,6 @@ pub mod arcade {
         Ok(())
     }
 
-    pub fn finish_one_player_game_queue(ctx: Context<FinishOnePlayerGameQueue>) -> ProgramResult {
-        Ok(())
-    }
-
-    pub fn finish_two_player_game_queue(ctx: Context<FinishTwoPlayerGameQueue>) -> ProgramResult {
-        Ok(())
-    }
-
-    pub fn finish_three_player_game_queue(ctx: Context<FinishThreePlayerGameQueue>) -> ProgramResult {
-        Ok(())
-    }
-
-    pub fn finish_four_player_game_queue(ctx: Context<FinishFourPlayerGameQueue>) -> ProgramResult {
-        Ok(())
-    }
-
     pub fn finish_two_player_king_of_hill_queue(ctx: Context<FinishTwoPlayerKingOfHillQueue>) -> ProgramResult {
         Ok(())
     }
@@ -1025,7 +1411,7 @@ pub struct DeleteMostRecentGame<'info> {
 pub struct PlayGame<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
-    #[account(mut, constraint = game_account.game_queue.unwrap() == game_queue_account.key())]
+    #[account(mut, constraint = game_account.game_queues.get().unwrap() == game_queue_account.key())]
     pub game_account: Account<'info, Game>,
     #[account(mut, constraint = game_queue_account.game == game_account.key())]
     pub game_queue_account: Account<'info, GameQueue>,
@@ -1072,6 +1458,42 @@ pub struct InitGameQueue<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct InitOnePlayerGameQueue<'info> {
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_account.max_players == 1,
+        constraint = game_account.game_queues.get(0) == None
+    )]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct JoinOnePlayerGameQueue<'info> {
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(mut, constraint = last_player.next_player == None)]
+    pub last_player: Account<'info, Player>,
+    #[account(mut, constraint = game_queue_account.last_player == last_player.key())]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_account.max_players == 1,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 // TODO: This transfer of credits might not actually be what I want please check later.
 // My intention is that the 25 cents of solana go into the player's account, which are then transferred into the game account when the player
 // looses.  Or possibly the transfer happens earlier (not sure just check this).
@@ -1097,6 +1519,77 @@ pub struct AdvanceOnePlayerGameQueue<'info> {
     )]
     pub game_account: Account<'info, Game>,
     pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinishOnePlayerGameQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player.next_player == None
+    )]
+    pub current_player: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account.current_player == current_player.key(),
+        constraint = game_queue_account.last_player == current_player.key(),
+        constraint = game_queue_account.game == game_account.key()
+    )]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct InitTwoPlayerGameQueue<'info> {
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_account.max_players == 2,
+        constraint = game_account.game_queues.get(0) == None,
+        constraint = game_account.game_queues.get(1) == None
+    )]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct JoinTwoPlayerGameQueue<'info> {
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(mut, constraint = q1_last_player.next_player == None)]
+    pub q1_last_player: Account<'info, Player>,
+    #[account(mut, constraint = q2_last_player.next_player == None)]
+    pub q2_last_player: Account<'info, Player>,
+    #[account(mut, constraint = game_queue_account_one.last_player == q1_last_player.key())]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    // constraint = game_queue_account_two.last_player == q2_last_player.key() has been removed to allow for situations where second player does not
+    // exist to be handeled by sending in the same player as q1 and q2 last players.
+    #[account(mut)]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_account.max_players == 2,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -1137,6 +1630,98 @@ pub struct AdvanceTwoPlayerGameQueue<'info> {
     )]
     pub game_account: Account<'info, Game>,
     pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinishTwoPlayerGameQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_one.next_player == None
+    )]
+    pub current_player_one: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_two.next_player == None
+    )]
+    pub current_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_one.current_player == current_player_one.key(),
+        constraint = game_queue_account_one.last_player == current_player_one.key(),
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_two.current_player == current_player_two.key(),
+        constraint = game_queue_account_two.last_player == current_player_two.key(),
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct InitThreePlayerGameQueue<'info> {
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_account.max_players == 3,
+        constraint = game_account.game_queues.get(0) == None,
+        constraint = game_account.game_queues.get(1) == None,
+        constraint = game_account.game_queues.get(2) == None
+    )]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct JoinThreePlayerGameQueue<'info> {
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(mut, constraint = q1_last_player.next_player == None)]
+    pub q1_last_player: Account<'info, Player>,
+    #[account(mut, constraint = q2_last_player.next_player == None)]
+    pub q2_last_player: Account<'info, Player>,
+    #[account(mut, constraint = q3_last_player.next_player == None)]
+    pub q3_last_player: Account<'info, Player>,
+    #[account(mut, constraint = game_queue_account_one.last_player == q1_last_player.key())]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(mut)]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(mut)]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_account.max_players == 3,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -1192,6 +1777,121 @@ pub struct AdvanceThreePlayerGameQueue<'info> {
     )]
     pub game_account: Account<'info, Game>,
     pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FinishThreePlayerGameQueue<'info> {
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_one.next_player == None
+    )]
+    pub current_player_one: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_two.next_player == None
+    )]
+    pub current_player_two: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = current_player_three.next_player == None
+    )]
+    pub current_player_three: Account<'info, Player>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_one.current_player == current_player_one.key(),
+        constraint = game_queue_account_one.last_player == current_player_one.key(),
+        constraint = game_queue_account_one.game == game_account.key()
+    )]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_two.current_player == current_player_two.key(),
+        constraint = game_queue_account_two.last_player == current_player_two.key(),
+        constraint = game_queue_account_two.game == game_account.key()
+    )]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        close = game_account,
+        constraint = game_queue_account_three.current_player == current_player_three.key(),
+        constraint = game_queue_account_three.last_player == current_player_three.key(),
+        constraint = game_queue_account_three.game == game_account.key()
+    )]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key()
+    )]
+    pub game_account: Account<'info, Game>,
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct InitFourPlayerGameQueue<'info> {
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    pub game_queue_account_four: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_account.max_players == 4,
+        constraint = game_account.game_queues.get(0) == None,
+        constraint = game_account.game_queues.get(1) == None,
+        constraint = game_account.game_queues.get(2) == None,
+        constraint = game_account.game_queues.get(3) == None,
+    )]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct JoinFourPlayerGameQueue<'info> {
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(mut, constraint = q1_last_player.next_player == None)]
+    pub q1_last_player: Account<'info, Player>,
+    #[account(mut, constraint = q2_last_player.next_player == None)]
+    pub q2_last_player: Account<'info, Player>,
+    #[account(mut, constraint = q3_last_player.next_player == None)]
+    pub q3_last_player: Account<'info, Player>,
+    #[account(mut, constraint = q4_last_player.next_player == None)]
+    pub q4_last_player: Account<'info, Player>,
+    #[account(mut, constraint = game_queue_account_one.last_player == q1_last_player.key())]
+    pub game_queue_account_one: Account<'info, GameQueue>,
+    #[account(mut)]
+    pub game_queue_account_two: Account<'info, GameQueue>,
+    #[account(mut)]
+    pub game_queue_account_three: Account<'info, GameQueue>,
+    #[account(mut)]
+    pub game_queue_account_four: Account<'info, GameQueue>,
+    #[account(
+        mut,
+        constraint = game_account.max_players == 4,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
+        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key(),
+        constraint = (*game_account.game_queues.get(3).unwrap()) == game_queue_account_four.key(),
+    )]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
@@ -1259,126 +1959,6 @@ struct AdvanceFourPlayerGameQueue<'info> {
         constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
         constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key(),
         constraint = (*game_account.game_queues.get(3).unwrap()) == game_queue_account_four.key(),
-    )]
-    pub game_account: Account<'info, Game>,
-    pub authority: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct FinishOnePlayerGameQueue<'info> {
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player.next_player == None
-    )]
-    pub current_player: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = game_queue_account.current_player == current_player.key(),
-        constraint = game_queue_account.last_player == current_player.key(),
-        constraint = game_queue_account.game == game_account.key()
-    )]
-    pub game_queue_account: Account<'info, GameQueue>,
-    #[account(
-        mut,
-        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account.key()
-    )]
-    pub game_account: Account<'info, Game>,
-    pub authority: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct FinishTwoPlayerGameQueue<'info> {
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player_one.next_player == None
-    )]
-    pub current_player_one: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player_two.next_player == None
-    )]
-    pub current_player_two: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = game_queue_account_one.current_player == current_player_one.key(),
-        constraint = game_queue_account_one.last_player == current_player_one.key(),
-        constraint = game_queue_account_one.game == game_account.key()
-    )]
-    pub game_queue_account_one: Account<'info, GameQueue>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = game_queue_account_two.current_player == current_player_two.key(),
-        constraint = game_queue_account_two.last_player == current_player_two.key(),
-        constraint = game_queue_account_two.game == game_account.key()
-    )]
-    pub game_queue_account_two: Account<'info, GameQueue>,
-    #[account(
-        mut,
-        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
-        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
-    )]
-    pub game_account: Account<'info, Game>,
-    pub authority: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct FinishThreePlayerGameQueue<'info> {
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player_one.next_player == None
-    )]
-    pub current_player_one: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player_two.next_player == None
-    )]
-    pub current_player_two: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player_three.next_player == None
-    )]
-    pub current_player_three: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = game_queue_account_one.current_player == current_player_one.key(),
-        constraint = game_queue_account_one.last_player == current_player_one.key(),
-        constraint = game_queue_account_one.game == game_account.key()
-    )]
-    pub game_queue_account_one: Account<'info, GameQueue>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = game_queue_account_two.current_player == current_player_two.key(),
-        constraint = game_queue_account_two.last_player == current_player_two.key(),
-        constraint = game_queue_account_two.game == game_account.key()
-    )]
-    pub game_queue_account_two: Account<'info, GameQueue>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = game_queue_account_three.current_player == current_player_three.key(),
-        constraint = game_queue_account_three.last_player == current_player_three.key(),
-        constraint = game_queue_account_three.game == game_account.key()
-    )]
-    pub game_queue_account_three: Account<'info, GameQueue>,
-    #[account(
-        mut,
-        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
-        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key(),
-        constraint = (*game_account.game_queues.get(2).unwrap()) == game_queue_account_three.key()
     )]
     pub game_account: Account<'info, Game>,
     pub authority: Signer<'info>,
@@ -1797,7 +2377,6 @@ pub struct Game {
     pub web_gl_hash: String,
     pub game_art_hash: String,
     pub max_players: u8,
-    pub next_queue_addition_idx: u8,
     pub leaderboard: Leaderboard,
     pub game_queues: Vec<Pubkey>,
     pub younger_game_key: Pubkey,
@@ -1806,7 +2385,7 @@ pub struct Game {
 }
 
 impl Game {
-    pub const MAX_SIZE: usize = (30 * mem::size_of::<char>()) + (2 * 256 * mem::size_of::<char>()) + Leaderboard::MAX_SIZE + (4 * mem::size_of::<Option<Pubkey>>()) + (3 * mem::size_of::<Pubkey>()) + (2 * mem::size_of::<u8>());
+    pub const MAX_SIZE: usize = (30 * mem::size_of::<char>()) + (2 * 256 * mem::size_of::<char>()) + Leaderboard::MAX_SIZE + (4 * mem::size_of::<Option<Pubkey>>()) + (3 * mem::size_of::<Pubkey>()) + (1 * mem::size_of::<u8>());
 }
 
 #[account]
