@@ -19,8 +19,9 @@ async function initOnePlayerQueue(program, provider, gameAccount) {
 
 	const gameQueue = await program.account.gameQueue.fetch(gameQueueAccount.publicKey);
 	const player = await program.account.player.fetch(playerAccount.publicKey);
+	const updatedGame = await program.account.game.fetch(gameAccount.publicKey);
 
-	return { player, playerAccount, gameQueue, gameQueueAccount };
+	return { player, playerAccount, gameQueue, gameQueueAccount, updatedGame };
 }
 
 async function initTwoPlayerQueue(program, provider, gameAccount) {
@@ -43,8 +44,9 @@ async function initTwoPlayerQueue(program, provider, gameAccount) {
 	const gameQueueOne = await program.account.gameQueue.fetch(gameQueueAccountOne.publicKey);
 	const gameQueueTwo = await program.account.gameQueue.fetch(gameQueueAccountTwo.publicKey);
 	const player = await program.account.player.fetch(playerAccount.publicKey);
+	const updatedGame = await program.account.game.fetch(gameAccount.publicKey);
 
-	return { player, playerAccount, gameQueueOne, gameQueueAccountOne, gameQueueTwo, gameQueueAccountTwo };
+	return { player, playerAccount, gameQueueOne, gameQueueAccountOne, gameQueueTwo, gameQueueAccountTwo, updatedGame };
 }
 
 async function initThreePlayerQueue(program, provider, gameAccount) {
@@ -70,8 +72,9 @@ async function initThreePlayerQueue(program, provider, gameAccount) {
 	const gameQueueTwo = await program.account.gameQueue.fetch(gameQueueAccountTwo.publicKey);
 	const gameQueueThree = await program.account.gameQueue.fetch(gameQueueAccountThree.publicKey);
 	const player = await program.account.player.fetch(playerAccount.publicKey);
+	const updatedGame = await program.account.game.fetch(gameAccount.publicKey);
 
-	return { player, playerAccount, gameQueueOne, gameQueueAccountOne, gameQueueTwo, gameQueueAccountTwo, gameQueueThree, gameQueueAccountThree};
+	return { player, playerAccount, gameQueueOne, gameQueueAccountOne, gameQueueTwo, gameQueueAccountTwo, gameQueueThree, gameQueueAccountThree, updatedGame};
 }
 
 async function initFourPlayerQueue(program, provider, gameAccount) {
@@ -100,8 +103,9 @@ async function initFourPlayerQueue(program, provider, gameAccount) {
 	const gameQueueThree = await program.account.gameQueue.fetch(gameQueueAccountThree.publicKey);
 	const gameQueueFour = await program.account.gameQueue.fetch(gameQueueAccountFour.publicKey);
 	const player = await program.account.player.fetch(playerAccount.publicKey);
+	const updatedGame = await program.account.game.fetch(gameAccount.publicKey);
 
-	return { player, playerAccount, gameQueueOne, gameQueueAccountOne, gameQueueTwo, gameQueueAccountTwo, gameQueueThree, gameQueueAccountThree, gameQueueFour, gameQueueAccountFour};
+	return { player, playerAccount, gameQueueOne, gameQueueAccountOne, gameQueueTwo, gameQueueAccountTwo, gameQueueThree, gameQueueAccountThree, gameQueueFour, gameQueueAccountFour, updatedGame };
 }
 
 module.exports = {

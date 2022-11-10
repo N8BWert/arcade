@@ -53,7 +53,6 @@ pub mod arcade {
         title: String,
         web_gl_hash: String,
         game_art_hash: String,
-        game_wallet: Pubkey,
         num_players: u8,
         game_type: u8,
     ) -> ProgramResult {
@@ -76,9 +75,9 @@ pub mod arcade {
         game_account.game_type = game_type;
 
         // Initialize leaderboard
-        let first_place = Place {name: String::from("AAA"), wallet_key: game_wallet, score: 100};
-        let second_place = Place {name: String::from("BBB"), wallet_key: game_wallet, score: 50};
-        let third_place = Place {name: String::from("CCC"), wallet_key: game_wallet, score: 25};
+        let first_place = Place {name: String::from("AAA"), wallet_key: owner.key(), score: 100};
+        let second_place = Place {name: String::from("BBB"), wallet_key: owner.key(), score: 50};
+        let third_place = Place {name: String::from("CCC"), wallet_key: owner.key(), score: 25};
 
         let leaderboard = Leaderboard {first_place, second_place, third_place};
 
@@ -216,7 +215,7 @@ pub mod arcade {
 
         (game_queue_account.current_player, game_queue_account.num_players_in_queue) = match current_player.next_player {
             Some(player) => (player, game_queue_account.num_players_in_queue - 1),
-            None => (game_account.key(), 0),
+            None => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
         };
 
         Ok(())
@@ -336,7 +335,7 @@ pub mod arcade {
 
         (game_queue_account_one.current_player, game_queue_account_one.num_players_in_queue) = match player_one.next_player {
             Some(player) => (player, game_queue_account_one.num_players_in_queue - 1),
-            None => (game_account.key(), 0),
+            None => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
         };
 
         (game_queue_account_two.current_player, game_queue_account_two.num_players_in_queue) = match player_two.next_player {
@@ -543,7 +542,7 @@ pub mod arcade {
         Ok(())
     }
 
-    pub fn advance_three_player_game_queue(ctx: Context<AdvanceThreePlayerGameQueue>) -> ProgramResult {
+    pub fn advance_three_player_game_queue(ctx: Context<AdvanceThreePlayerGameQueue>) -> Result<()> {
         let player_one = &mut ctx.accounts.player_one;
         let player_two = &mut ctx.accounts.player_two;
         let player_three = &mut ctx.accounts.player_three;
@@ -554,7 +553,7 @@ pub mod arcade {
 
         (game_queue_account_one.current_player, game_queue_account_one.num_players_in_queue) = match player_one.next_player {
             Some(player) => (player, game_queue_account_one.num_players_in_queue - 1),
-            None => (game_account.key(), 0),
+            None => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
         };
 
         (game_queue_account_two.current_player, game_queue_account_two.num_players_in_queue) = match player_two.next_player {
@@ -905,20 +904,36 @@ pub mod arcade {
         Ok(())
     }
 
-    pub fn advance_four_player_game_queue(ctx: Context<AdvanceFourPlayerGameQueue>) -> ProgramResult {
-        let next_player_1 = &mut ctx.accounts.next_player_one;
-        let next_player_2 = &mut ctx.accounts.next_player_two;
-        let next_player_3 = &mut ctx.accounts.next_player_three;
-        let next_player_4 = &mut ctx.accounts.next_player_four;
-        let game_queue_account_1 = &mut ctx.accounts.game_queue_account_one;
-        let game_queue_account_2 = &mut ctx.accounts.game_queue_account_two;
-        let game_queue_account_3 = &mut ctx.accounts.game_queue_account_three;
-        let game_queue_account_4 = &mut ctx.accounts.game_queue_account_four;
+    pub fn advance_four_player_game_queue(ctx: Context<AdvanceFourPlayerGameQueue>) -> Result<()> {
+        let player_one = &mut ctx.accounts.player_one;
+        let player_two = &mut ctx.accounts.player_two;
+        let player_three = &mut ctx.accounts.player_three;
+        let player_four = &mut ctx.accounts.player_four;
+        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
+        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
+        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
+        let game_queue_account_four = &mut ctx.accounts.game_queue_account_four;
+        let game_account = & ctx.accounts.game_account;
 
-        game_queue_account_1.current_player = next_player_1.key();
-        game_queue_account_2.current_player = next_player_2.key();
-        game_queue_account_3.current_player = next_player_3.key();
-        game_queue_account_4.current_player = next_player_4.key();
+        (game_queue_account_one.current_player, game_queue_account_one.num_players_in_queue) = match player_one.next_player {
+            Some(player) => (player, game_queue_account_one.num_players_in_queue - 1),
+            None => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
+        };
+
+        (game_queue_account_two.current_player, game_queue_account_two.num_players_in_queue) = match player_two.next_player {
+            Some(player) => (player, game_queue_account_two.num_players_in_queue - 1),
+            None => (game_account.key(), 0),
+        };
+
+        (game_queue_account_three.current_player, game_queue_account_three.num_players_in_queue) = match player_three.next_player {
+            Some(player) => (player, game_queue_account_three.num_players_in_queue - 1),
+            None => (game_account.key(), 0),
+        };
+
+        (game_queue_account_four.current_player, game_queue_account_four.num_players_in_queue) = match player_four.next_player {
+            Some(player) => (player, game_queue_account_four.num_players_in_queue - 1),
+            None => (game_account.key(), 0),
+        };
 
         Ok(())
     }
@@ -1702,28 +1717,28 @@ pub struct FinishTwoPlayerGameQueue<'info> {
     #[account(
         mut,
         close = game_account,
-        constraint = current_player_one.next_player == None
+        constraint = player_one.next_player == None
     )]
-    pub current_player_one: Account<'info, Player>,
+    pub player_one: Account<'info, Player>,
     #[account(
         mut,
         close = game_account,
-        constraint = current_player_two.next_player == None
+        constraint = player_two.next_player == None
     )]
-    pub current_player_two: Account<'info, Player>,
+    pub player_two: Account<'info, Player>,
     #[account(
         mut,
         close = game_account,
-        constraint = game_queue_account_one.current_player == current_player_one.key(),
-        constraint = game_queue_account_one.last_player == current_player_one.key(),
+        constraint = game_queue_account_one.current_player == player_one.key(),
+        constraint = game_queue_account_one.last_player == player_one.key(),
         constraint = game_queue_account_one.game == game_account.key()
     )]
     pub game_queue_account_one: Account<'info, GameQueue>,
     #[account(
         mut,
         close = game_account,
-        constraint = game_queue_account_two.current_player == current_player_two.key(),
-        constraint = game_queue_account_two.last_player == current_player_two.key(),
+        constraint = (game_queue_account_two.current_player == player_two.key()) || (game_queue_account_two.current_player == game_account.key()),
+        constraint = (game_queue_account_two.last_player == player_two.key()) || (game_queue_account_two.last_player == game_account.key()),
         constraint = game_queue_account_two.game == game_account.key()
     )]
     pub game_queue_account_two: Account<'info, GameQueue>,
@@ -1741,12 +1756,6 @@ pub struct FinishTwoPlayerGameQueue<'info> {
 
 #[derive(Accounts)]
 pub struct FinishTwoPlayerKingOfHillQueue<'info> {
-    #[account(
-        mut,
-        close = game_account,
-        constraint = winning_player.wallet_key == game_account.key()
-    )]
-    pub winning_player: Account<'info, Player>,
     #[account(mut, close = game_account)]
     pub losing_player: Account<'info, Player>,
     #[account(
@@ -1905,42 +1914,42 @@ pub struct FinishThreePlayerGameQueue<'info> {
     #[account(
         mut,
         close = game_account,
-        constraint = current_player_one.next_player == None
+        constraint = player_one.next_player == None
     )]
-    pub current_player_one: Account<'info, Player>,
+    pub player_one: Account<'info, Player>,
     #[account(
         mut,
         close = game_account,
-        constraint = current_player_two.next_player == None
+        constraint = player_two.next_player == None
     )]
-    pub current_player_two: Account<'info, Player>,
+    pub player_two: Account<'info, Player>,
     #[account(
         mut,
         close = game_account,
-        constraint = current_player_three.next_player == None
+        constraint = player_three.next_player == None
     )]
-    pub current_player_three: Account<'info, Player>,
+    pub player_three: Account<'info, Player>,
     #[account(
         mut,
         close = game_account,
-        constraint = game_queue_account_one.current_player == current_player_one.key(),
-        constraint = game_queue_account_one.last_player == current_player_one.key(),
+        constraint = game_queue_account_one.current_player == player_one.key(),
+        constraint = game_queue_account_one.last_player == player_one.key(),
         constraint = game_queue_account_one.game == game_account.key()
     )]
     pub game_queue_account_one: Account<'info, GameQueue>,
     #[account(
         mut,
         close = game_account,
-        constraint = game_queue_account_two.current_player == current_player_two.key(),
-        constraint = game_queue_account_two.last_player == current_player_two.key(),
+        constraint = (game_queue_account_two.current_player == player_two.key()) || (game_queue_account_two.current_player == game_account.key()),
+        constraint = (game_queue_account_two.last_player == player_two.key()) || (game_queue_account_two.last_player == game_account.key()),
         constraint = game_queue_account_two.game == game_account.key()
     )]
     pub game_queue_account_two: Account<'info, GameQueue>,
     #[account(
         mut,
         close = game_account,
-        constraint = game_queue_account_three.current_player == current_player_three.key(),
-        constraint = game_queue_account_three.last_player == current_player_three.key(),
+        constraint = (game_queue_account_three.current_player == player_three.key()) || (game_queue_account_three.current_player == game_account.key()),
+        constraint = (game_queue_account_three.last_player == player_three.key()) || (game_queue_account_three.last_player == game_account.key()),
         constraint = game_queue_account_three.game == game_account.key()
     )]
     pub game_queue_account_three: Account<'info, GameQueue>,
@@ -1959,12 +1968,6 @@ pub struct FinishThreePlayerGameQueue<'info> {
 
 #[derive(Accounts)]
 pub struct FinishThreePlayerKingOfHillQueue<'info> {
-    #[account(
-        mut,
-        close = game_account,
-        constraint = winning_player.wallet_key == game_account.key()
-    )]
-    pub winning_player: Account<'info, Player>,
     #[account(mut, close = game_account)]
     pub losing_player_one: Account<'info, Player>,
     #[account(mut, close = game_account)]
@@ -2062,59 +2065,35 @@ pub struct JoinFourPlayerGameQueue<'info> {
 
 #[derive(Accounts)]
 pub struct AdvanceFourPlayerGameQueue<'info> {
+    #[account(mut, close = game_account)]
+    pub player_one: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub player_two: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub player_three: Account<'info, Player>,
+    #[account(mut, close = game_account)]
+    pub player_four: Account<'info, Player>,
     #[account(
         mut,
-        close = game_account,
-        constraint = current_player_one.next_player.unwrap() == next_player_one.key()
-    )]
-    pub current_player_one: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player_two.next_player.unwrap() == next_player_two.key()
-    )]
-    pub current_player_two: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player_three.next_player.unwrap() == next_player_three.key()
-    )]
-    pub current_player_three: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = current_player_four.next_player.unwrap() == next_player_four.key()
-    )]
-    pub current_player_four: Account<'info, Player>,
-    #[account(mut)]
-    pub next_player_one: Account<'info, Player>,
-    #[account(mut)]
-    pub next_player_two: Account<'info, Player>,
-    #[account(mut)]
-    pub next_player_three: Account<'info, Player>,
-    #[account(mut)]
-    pub next_player_four: Account<'info, Player>,
-    #[account(
-        mut,
-        constraint = game_queue_account_one.current_player == current_player_one.key(),
+        constraint = game_queue_account_one.current_player == player_one.key(),
         constraint = game_queue_account_one.game == game_account.key()
     )]
     pub game_queue_account_one: Account<'info, GameQueue>,
     #[account(
         mut,
-        constraint = game_queue_account_two.current_player == current_player_two.key(),
+        constraint = game_queue_account_two.current_player == player_two.key(),
         constraint = game_queue_account_two.game == game_account.key()
     )]
     pub game_queue_account_two: Account<'info, GameQueue>,
     #[account(
         mut,
-        constraint = game_queue_account_three.current_player == current_player_three.key(),
+        constraint = game_queue_account_three.current_player == player_three.key(),
         constraint = game_queue_account_three.game == game_account.key()
     )]
     pub game_queue_account_three: Account<'info, GameQueue>,
     #[account(
         mut,
-        constraint = game_queue_account_four.current_player == current_player_four.key(),
+        constraint = game_queue_account_four.current_player == player_four.key(),
         constraint = game_queue_account_four.game == game_account.key()
     )]
     pub game_queue_account_four: Account<'info, GameQueue>,
@@ -2225,56 +2204,56 @@ pub struct FinishFourPlayerGameQueue<'info> {
     #[account(
         mut,
         close = game_account,
-        constraint = current_player_one.next_player == None
+        constraint = player_one.next_player == None
     )]
-    pub current_player_one: Account<'info, Player>,
+    pub player_one: Account<'info, Player>,
     #[account(
         mut,
         close = game_account,
-        constraint = current_player_two.next_player == None
+        constraint = player_two.next_player == None
     )]
-    pub current_player_two: Account<'info, Player>,
+    pub player_two: Account<'info, Player>,
     #[account(
         mut,
         close = game_account,
-        constraint = current_player_three.next_player == None
+        constraint = player_three.next_player == None
     )]
-    pub current_player_three: Account<'info, Player>,
+    pub player_three: Account<'info, Player>,
     #[account(
         mut,
         close = game_account,
-        constraint = current_player_four.next_player == None
+        constraint = player_four.next_player == None
     )]
-    pub current_player_four: Account<'info, Player>,
+    pub player_four: Account<'info, Player>,
     #[account(
         mut,
         close = game_account,
-        constraint = game_queue_account_one.current_player == current_player_one.key(),
-        constraint = game_queue_account_one.last_player == current_player_one.key(),
+        constraint = game_queue_account_one.current_player == player_one.key(),
+        constraint = game_queue_account_one.last_player == player_one.key(),
         constraint = game_queue_account_one.game == game_account.key()
     )]
     pub game_queue_account_one: Account<'info, GameQueue>,
     #[account(
         mut,
         close = game_account,
-        constraint = game_queue_account_two.current_player == current_player_two.key(),
-        constraint = game_queue_account_two.last_player == current_player_two.key(),
+        constraint = (game_queue_account_two.current_player == player_two.key()) || (game_queue_account_two.current_player == game_account.key()),
+        constraint = (game_queue_account_two.last_player == player_two.key()) || (game_queue_account_two.last_player == game_account.key()),
         constraint = game_queue_account_two.game == game_account.key()
     )]
     pub game_queue_account_two: Account<'info, GameQueue>,
     #[account(
         mut,
         close = game_account,
-        constraint = game_queue_account_three.current_player == current_player_three.key(),
-        constraint = game_queue_account_three.last_player == current_player_three.key(),
+        constraint = (game_queue_account_three.current_player == player_three.key()) || (game_queue_account_three.current_player == game_account.key()),
+        constraint = (game_queue_account_three.last_player == player_three.key()) || (game_queue_account_three.last_player == game_account.key()),
         constraint = game_queue_account_three.game == game_account.key()
     )]
     pub game_queue_account_three: Account<'info, GameQueue>,
     #[account(
         mut,
         close = game_account,
-        constraint = game_queue_account_four.current_player == current_player_four.key(),
-        constraint = game_queue_account_four.last_player == current_player_four.key(),
+        constraint = (game_queue_account_four.current_player == player_four.key()) || (game_queue_account_four.current_player == game_account.key()),
+        constraint = (game_queue_account_four.last_player == player_four.key()) || (game_queue_account_four.last_player == game_account.key()),
         constraint = game_queue_account_four.game == game_account.key()
     )]
     pub game_queue_account_four: Account<'info, GameQueue>,
@@ -2294,12 +2273,6 @@ pub struct FinishFourPlayerGameQueue<'info> {
 
 #[derive(Accounts)]
 pub struct FinishFourPlayerKingOfHillQueue<'info> {
-    #[account(
-        mut,
-        close = game_account,
-        constraint = winning_player.wallet_key == game_account.key()
-    )]
-    pub winning_player: Account<'info, Player>,
     #[account(mut, close = game_account)]
     pub losing_player_one: Account<'info, Player>,
     #[account(mut, close = game_account)]
@@ -2346,18 +2319,6 @@ pub struct FinishFourPlayerKingOfHillQueue<'info> {
 
 #[derive(Accounts)]
 pub struct FinishTeamKingOfHillQueue<'info> {
-    #[account(
-        mut,
-        close = game_account,
-        constraint = winning_player_one.wallet_key == game_account.key()
-    )]
-    pub winning_player_one: Account<'info, Player>,
-    #[account(
-        mut,
-        close = game_account,
-        constraint = winning_player_two.wallet_key == game_account.key()
-    )]
-    pub winning_player_two: Account<'info, Player>,
     #[account(mut, close = game_account)]
     pub losing_player_one: Account<'info, Player>,
     #[account(mut, close = game_account)]

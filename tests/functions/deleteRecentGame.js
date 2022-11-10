@@ -8,8 +8,8 @@ async function deleteRecentGame(program, provider, gameAccount, arcadeAccount, l
 		accounts: {
 			gameAccount: gameAccount.publicKey,
 			arcadeState: arcadeAccount.publicKey,
-			laterGame: laterGameAccount.publicKey,
-			ownerWallet: provider.wallet.publicKey,
+			olderGame: laterGameAccount.publicKey,
+			owner: provider.wallet.publicKey,
 			systemProgram: SystemProgram.programId,
 		}
 	});
