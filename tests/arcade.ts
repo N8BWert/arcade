@@ -8,7 +8,6 @@ const { makeGame } = require("./functions/makeGame.js");
 const { deleteRecentGame } = require("./functions/deleteRecentGame.js");
 const { deleteGame } = require("./functions/deleteGame.js");
 const { updateLeaderboard } = require("./functions/updateLeaderboard.js");
-const { playGame } = require("./functions/playGame.js");
 const { initOnePlayerQueue, initTwoPlayerQueue, initThreePlayerQueue, initFourPlayerQueue } = require("./functions/initQueue.js");
 const { joinOnePlayerQueue, joinTwoPlayerQueue, joinThreePlayerQueue, joinFourPlayerQueue } = require("./functions/joinQueue.js");
 const { advanceOnePlayerQueue, advanceTwoPlayerQueue, advanceTwoPlayerKingOfHillQueue, advanceThreePlayerQueue,

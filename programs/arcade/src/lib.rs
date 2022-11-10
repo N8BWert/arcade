@@ -1484,36 +1484,6 @@ pub struct DeleteMostRecentGame<'info> {
 }
 
 #[derive(Accounts)]
-pub struct PlayGame<'info> {
-    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
-    pub player_account: Account<'info, Player>,
-    #[account(mut, constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account.key())]
-    pub game_account: Account<'info, Game>,
-    #[account(mut, constraint = game_queue_account.game == game_account.key())]
-    pub game_queue_account: Account<'info, GameQueue>,
-    #[account(mut, constraint = game_queue_account.last_player == last_player.key())]
-    pub last_player: Account<'info, Player>,
-    #[account(mut)]
-    pub payer: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct JoinGameQueue<'info> {
-    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
-    pub player_account: Account<'info, Player>,
-    #[account(mut)]
-    pub game_account: Account<'info, Game>,
-    #[account(mut)]
-    pub game_queue_account: Account<'info, GameQueue>,
-    #[account(mut, constraint = game_queue_account.last_player == last_player.key())]
-    pub last_player: Account<'info, Player>,
-    #[account(mut)]
-    pub payer: Signer<'info>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
 pub struct GameEnd<'info> {
     #[account(mut)]
     pub game_account: Account<'info, Game>,
