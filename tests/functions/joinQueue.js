@@ -17,11 +17,9 @@ async function joinOnePlayerQueue(program, provider, gameAccount, gameQueueAccou
 		signers: [playerAccount],
 	});
 
-	const updatedGameQueue = await program.account.gameQueue.fetch(gameQueueAccount.publicKey);
-	const updatedLastPlayer = await program.account.player.fetch(lastPlayer.publicKey);
 	const player = await program.account.player.fetch(playerAccount.publicKey);
 
-	return { player, playerAccount, updatedLastPlayer, updatedGameQueue };
+	return { player, playerAccount };
 }
 
 async function joinTwoPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, queueOneLastPlayer, queueTwoLastPlayer) {
@@ -41,13 +39,9 @@ async function joinTwoPlayerQueue(program, provider, gameAccount, gameQueueAccou
 		signers: [playerAccount],
 	});
 
-	const updatedGameQueueOne = await program.account.gameQueue.fetch(gameQueueAccountOne.publicKey);
-	const updatedLastPlayerOne = await program.account.player.fetch(queueOneLastPlayer.publicKey);
-	const updatedGameQueueTwo = await program.account.gameQueue.fetch(gameQueueAccountTwo.publicKey);
-	const updatedLastPlayerTwo = await program.account.gameQueue.fetch(queueTwoLastPlayer.publicKey);
 	const player = await program.account.player.fetch(playerAccount.publicKey);
 
-	return { player, playerAccount, updatedGameQueueOne, updatedLastPlayerOne, updatedGameQueueTwo, updatedLastPlayerTwo }
+	return { player, playerAccount };
 }
 
 async function joinThreePlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, queueOneLastPlayer, queueTwoLastPlayer, queueThreeLastPlayer) {
@@ -69,21 +63,15 @@ async function joinThreePlayerQueue(program, provider, gameAccount, gameQueueAcc
 		signers: [playerAccount],
 	});
 
-	const updatedGameQueueOne = await program.account.gameQueue.fetch(gameQueueAccountOne.publicKey);
-	const updatedLastPlayerOne = await program.account.player.fetch(queueOneLastPlayer.publicKey);
-	const updatedGameQueueTwo = await program.account.gameQueue.fetch(gameQueueAccountTwo.publicKey);
-	const updatedLastPlayerTwo = await program.account.gameQueue.fetch(queueTwoLastPlayer.publicKey);
-	const updatedGameQueueThree = await program.account.gameQueue.fetch(gameQueueAccountThree.publicKey);
-	const updatedLastPlayerThree = await program.account.gameQueue.fetch(queueThreeLastPlayer.publicKey);
 	const player = await program.account.player.fetch(playerAccount.publicKey);
 
-	return { player, playerAccount, updatedGameQueueOne, updatedLastPlayerOne, updatedGameQueueTwo, updatedLastPlayerTwo, updatedGameQueueThree, updatedLastPlayerThree }
+	return { player, playerAccount };
 }
 
 async function joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, queueOneLastPlayer, queueTwoLastPlayer, queueThreeLastPlayer, queueFourLastPlayer) {
 	const playerAccount = anchor.web3.Keypair.generate();
 
-	await program.rpc.joinThreePlayerGameQueue({
+	await program.rpc.joinFourPlayerGameQueue({
 		accounts: {
 			playerAccount: playerAccount.publicKey,
 			q1LastPlayer: queueOneLastPlayer.publicKey,
@@ -93,6 +81,7 @@ async function joinFourPlayerQueue(program, provider, gameAccount, gameQueueAcco
 			gameQueueAccountOne: gameQueueAccountOne.publicKey,
 			gameQueueAccountTwo: gameQueueAccountTwo.publicKey,
 			gameQueueAccountThree: gameQueueAccountThree.publicKey,
+			gameQueueAccountFour: gameQueueAccountFour.publicKey,
 			gameAccount: gameAccount.publicKey,
 			payer: provider.wallet.publicKey,
 			systemProgram: SystemProgram.programId,
@@ -100,17 +89,9 @@ async function joinFourPlayerQueue(program, provider, gameAccount, gameQueueAcco
 		signers: [playerAccount],
 	});
 
-	const updatedGameQueueOne = await program.account.gameQueue.fetch(gameQueueAccountOne.publicKey);
-	const updatedLastPlayerOne = await program.account.player.fetch(queueOneLastPlayer.publicKey);
-	const updatedGameQueueTwo = await program.account.gameQueue.fetch(gameQueueAccountTwo.publicKey);
-	const updatedLastPlayerTwo = await program.account.gameQueue.fetch(queueTwoLastPlayer.publicKey);
-	const updatedGameQueueThree = await program.account.gameQueue.fetch(gameQueueAccountThree.publicKey);
-	const updatedLastPlayerThree = await program.account.gameQueue.fetch(queueThreeLastPlayer.publicKey);
-	const updatedGameQueueFour = await program.account.gameQueue.fetch(gameQueueAccountFour.publicKey);
-	const updatedLastPlayerFour = await program.account.gameQueue.fetch(queueFourLastPlayer.publicKey);
 	const player = await program.account.player.fetch(playerAccount.publicKey);
 
-	return { player, playerAccount, updatedGameQueueOne, updatedLastPlayerOne, updatedGameQueueTwo, updatedLastPlayerTwo, updatedGameQueueThree, updatedLastPlayerThree, updatedGameQueueFour, updatedLastPlayerFour }
+	return { player, playerAccount };
 }
 
 module.exports = {

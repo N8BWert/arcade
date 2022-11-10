@@ -170,6 +170,7 @@ pub mod arcade {
         game_queue_account.game = game_account.key();
         game_queue_account.current_player = player_account.key();
         game_queue_account.last_player = player_account.key();
+        game_queue_account.num_players_in_queue = 1;
 
         game_account.game_queues.push(game_queue_account.key());
 
@@ -203,6 +204,7 @@ pub mod arcade {
         last_player.next_player = Some(player_account.key());
 
         game_queue_account.last_player = player_account.key();
+        game_queue_account.num_players_in_queue += 1;
 
         // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
 
@@ -441,13 +443,13 @@ pub mod arcade {
         game_queue_account_one.num_players_in_queue = 1;
 
         game_queue_account_two.game = game_account.key();
-        game_queue_account_two.current_player = player_account.key();
-        game_queue_account_two.last_player = player_account.key();
+        game_queue_account_two.current_player = game_account.key();
+        game_queue_account_two.last_player = game_account.key();
         game_queue_account_two.num_players_in_queue = 0;
 
         game_queue_account_three.game = game_account.key();
-        game_queue_account_three.current_player = player_account.key();
-        game_queue_account_three.last_player = player_account.key();
+        game_queue_account_three.current_player = game_account.key();
+        game_queue_account_three.last_player = game_account.key();
         game_queue_account_three.num_players_in_queue = 0;
 
         game_account.game_queues.push(game_queue_account_one.key());
@@ -533,8 +535,8 @@ pub mod arcade {
         } else {
             // Add a new player behind player 3.
             q3_last_player.next_player = Some(player_account.key());
-            game_queue_account_two.last_player = player_account.key();
-            game_queue_account_two.num_players_in_queue += 1;
+            game_queue_account_three.last_player = player_account.key();
+            game_queue_account_three.num_players_in_queue += 1;
 
             // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
         }
@@ -1495,7 +1497,7 @@ pub struct GameEnd<'info> {
 pub struct InitOnePlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
-    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
     pub game_queue_account: Account<'info, GameQueue>,
     #[account(
         mut,
@@ -1582,9 +1584,9 @@ pub struct FinishOnePlayerGameQueue<'info> {
 pub struct InitTwoPlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
-    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
     pub game_queue_account_one: Account<'info, GameQueue>,
-    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
     pub game_queue_account_two: Account<'info, GameQueue>,
     #[account(
         mut,
@@ -1756,11 +1758,11 @@ pub struct FinishTwoPlayerKingOfHillQueue<'info> {
 pub struct InitThreePlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
-    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
     pub game_queue_account_one: Account<'info, GameQueue>,
-    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
     pub game_queue_account_two: Account<'info, GameQueue>,
-    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
     pub game_queue_account_three: Account<'info, GameQueue>,
     #[account(
         mut,
@@ -1977,13 +1979,13 @@ pub struct FinishThreePlayerKingOfHillQueue<'info> {
 pub struct InitFourPlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
-    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
     pub game_queue_account_one: Account<'info, GameQueue>,
-    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
     pub game_queue_account_two: Account<'info, GameQueue>,
-    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
     pub game_queue_account_three: Account<'info, GameQueue>,
-    #[account(init, payer = game_account, space = 8 + GameQueue::MAX_SIZE)]
+    #[account(init, payer = payer, space = 8 + GameQueue::MAX_SIZE)]
     pub game_queue_account_four: Account<'info, GameQueue>,
     #[account(
         mut,
@@ -1993,7 +1995,7 @@ pub struct InitFourPlayerGameQueue<'info> {
         constraint = game_account.game_queues.get(2) == None,
         constraint = game_account.game_queues.get(3) == None,
     )]
-    pub game_account: Account<'info, Game>,
+    pub game_account: Box<Account<'info, Game>>,
     #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -2366,7 +2368,12 @@ pub struct Game {
 }
 
 impl Game {
-    pub const MAX_SIZE: usize = (30 * mem::size_of::<char>()) + (2 * 256 * mem::size_of::<char>()) + Leaderboard::MAX_SIZE + (4 * mem::size_of::<Option<Pubkey>>()) + (3 * mem::size_of::<Pubkey>()) + (2 * mem::size_of::<u8>());
+    pub const MAX_SIZE: usize = (30 * mem::size_of::<char>()) + // size of title
+                                (2 * 256 * mem::size_of::<char>()) + // size of webgl hash and game art hash
+                                (2 * mem::size_of::<u8>()) + // size of max players + game type
+                                (Leaderboard::MAX_SIZE) + // size of leaderboard
+                                (4 + 4 * mem::size_of::<Pubkey>()) + // size of game queues vector
+                                (3 * mem::size_of::<Pubkey>()); // size of younger_game_key older_game_key and owner wallet
 }
 
 #[account]
