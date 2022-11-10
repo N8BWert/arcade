@@ -1816,11 +1816,11 @@ pub struct JoinThreePlayerGameQueue<'info> {
     #[account(mut, constraint = q3_last_player.next_player == None)]
     pub q3_last_player: Account<'info, Player>,
     #[account(mut, constraint = game_queue_account_one.last_player == q1_last_player.key())]
-    pub game_queue_account_one: Account<'info, GameQueue>,
+    pub game_queue_account_one: Box<Account<'info, GameQueue>>,
     #[account(mut)]
-    pub game_queue_account_two: Account<'info, GameQueue>,
+    pub game_queue_account_two: Box<Account<'info, GameQueue>>,
     #[account(mut)]
-    pub game_queue_account_three: Account<'info, GameQueue>,
+    pub game_queue_account_three: Box<Account<'info, GameQueue>>,
     #[account(
         mut,
         constraint = game_account.max_players == 3,
@@ -1837,11 +1837,11 @@ pub struct JoinThreePlayerGameQueue<'info> {
 #[derive(Accounts)]
 pub struct AdvanceThreePlayerGameQueue<'info> {
     #[account(mut, close = game_account)]
-    pub player_one: Account<'info, Player>,
+    pub player_one: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub player_two: Account<'info, Player>,
+    pub player_two: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub player_three: Account<'info, Player>,
+    pub player_three: Box<Account<'info, Player>>,
     #[account(
         mut,
         constraint = game_queue_account_one.current_player == player_one.key(),
@@ -1876,11 +1876,11 @@ pub struct AdvanceThreePlayerGameQueue<'info> {
 #[derive(Accounts)]
 pub struct AdvanceThreePlayerKingOfHillQueue<'info> {
     #[account(mut)]
-    pub winning_player: Account<'info, Player>,
+    pub winning_player: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub losing_player_one: Account<'info, Player>,
+    pub losing_player_one: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub losing_player_two: Account<'info, Player>,
+    pub losing_player_two: Box<Account<'info, Player>>,
     #[account(
         mut,
         constraint = game_queue_account_one.game == game_account.key()
@@ -1916,19 +1916,19 @@ pub struct FinishThreePlayerGameQueue<'info> {
         close = game_account,
         constraint = player_one.next_player == None
     )]
-    pub player_one: Account<'info, Player>,
+    pub player_one: Box<Account<'info, Player>>,
     #[account(
         mut,
         close = game_account,
         constraint = player_two.next_player == None
     )]
-    pub player_two: Account<'info, Player>,
+    pub player_two: Box<Account<'info, Player>>,
     #[account(
         mut,
         close = game_account,
         constraint = player_three.next_player == None
     )]
-    pub player_three: Account<'info, Player>,
+    pub player_three: Box<Account<'info, Player>>,
     #[account(
         mut,
         close = game_account,
@@ -1969,9 +1969,9 @@ pub struct FinishThreePlayerGameQueue<'info> {
 #[derive(Accounts)]
 pub struct FinishThreePlayerKingOfHillQueue<'info> {
     #[account(mut, close = game_account)]
-    pub losing_player_one: Account<'info, Player>,
+    pub losing_player_one: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub losing_player_two: Account<'info, Player>,
+    pub losing_player_two: Box<Account<'info, Player>>,
     #[account(
         mut,
         close = game_account,
@@ -2042,13 +2042,13 @@ pub struct JoinFourPlayerGameQueue<'info> {
     #[account(mut, constraint = q4_last_player.next_player == None)]
     pub q4_last_player: Account<'info, Player>,
     #[account(mut, constraint = game_queue_account_one.last_player == q1_last_player.key())]
-    pub game_queue_account_one: Account<'info, GameQueue>,
+    pub game_queue_account_one: Box<Account<'info, GameQueue>>,
     #[account(mut)]
-    pub game_queue_account_two: Account<'info, GameQueue>,
+    pub game_queue_account_two: Box<Account<'info, GameQueue>>,
     #[account(mut)]
-    pub game_queue_account_three: Account<'info, GameQueue>,
+    pub game_queue_account_three: Box<Account<'info, GameQueue>>,
     #[account(mut)]
-    pub game_queue_account_four: Account<'info, GameQueue>,
+    pub game_queue_account_four: Box<Account<'info, GameQueue>>,
     #[account(
         mut,
         constraint = game_account.max_players == 4,
@@ -2066,13 +2066,13 @@ pub struct JoinFourPlayerGameQueue<'info> {
 #[derive(Accounts)]
 pub struct AdvanceFourPlayerGameQueue<'info> {
     #[account(mut, close = game_account)]
-    pub player_one: Account<'info, Player>,
+    pub player_one: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub player_two: Account<'info, Player>,
+    pub player_two: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub player_three: Account<'info, Player>,
+    pub player_three: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub player_four: Account<'info, Player>,
+    pub player_four: Box<Account<'info, Player>>,
     #[account(
         mut,
         constraint = game_queue_account_one.current_player == player_one.key(),
@@ -2114,13 +2114,13 @@ pub struct AdvanceFourPlayerGameQueue<'info> {
 #[derive(Accounts)]
 pub struct AdvanceFourPlayerKingOfHillQueue<'info> {
     #[account(mut)]
-    pub winning_player: Account<'info, Player>,
+    pub winning_player: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub losing_player_one: Account<'info, Player>,
+    pub losing_player_one: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub losing_player_two: Account<'info, Player>,
+    pub losing_player_two: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub losing_player_three: Account<'info, Player>,
+    pub losing_player_three: Box<Account<'info, Player>>,
     #[account(
         mut,
         constraint = game_queue_account_one.game == game_account.key()
@@ -2158,13 +2158,13 @@ pub struct AdvanceFourPlayerKingOfHillQueue<'info> {
 #[derive(Accounts)]
 pub struct AdvanceTeamKingOfHillQueue<'info> {
     #[account(mut)]
-    pub winning_player_one: Account<'info, Player>,
+    pub winning_player_one: Box<Account<'info, Player>>,
     #[account(mut)]
-    pub winning_player_two: Account<'info, Player>,
+    pub winning_player_two: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub losing_player_one: Account<'info, Player>,
+    pub losing_player_one: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub losing_player_two: Account<'info, Player>,
+    pub losing_player_two: Box<Account<'info, Player>>,
     #[account(
         mut,
         constraint = game_queue_account_one.game == game_account.key()
@@ -2206,25 +2206,25 @@ pub struct FinishFourPlayerGameQueue<'info> {
         close = game_account,
         constraint = player_one.next_player == None
     )]
-    pub player_one: Account<'info, Player>,
+    pub player_one: Box<Account<'info, Player>>,
     #[account(
         mut,
         close = game_account,
         constraint = player_two.next_player == None
     )]
-    pub player_two: Account<'info, Player>,
+    pub player_two: Box<Account<'info, Player>>,
     #[account(
         mut,
         close = game_account,
         constraint = player_three.next_player == None
     )]
-    pub player_three: Account<'info, Player>,
+    pub player_three: Box<Account<'info, Player>>,
     #[account(
         mut,
         close = game_account,
         constraint = player_four.next_player == None
     )]
-    pub player_four: Account<'info, Player>,
+    pub player_four: Box<Account<'info, Player>>,
     #[account(
         mut,
         close = game_account,
@@ -2274,11 +2274,11 @@ pub struct FinishFourPlayerGameQueue<'info> {
 #[derive(Accounts)]
 pub struct FinishFourPlayerKingOfHillQueue<'info> {
     #[account(mut, close = game_account)]
-    pub losing_player_one: Account<'info, Player>,
+    pub losing_player_one: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub losing_player_two: Account<'info, Player>,
+    pub losing_player_two: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub losing_player_three: Account<'info, Player>,
+    pub losing_player_three: Box<Account<'info, Player>>,
     #[account(
         mut,
         close = game_account,
@@ -2320,9 +2320,9 @@ pub struct FinishFourPlayerKingOfHillQueue<'info> {
 #[derive(Accounts)]
 pub struct FinishTeamKingOfHillQueue<'info> {
     #[account(mut, close = game_account)]
-    pub losing_player_one: Account<'info, Player>,
+    pub losing_player_one: Box<Account<'info, Player>>,
     #[account(mut, close = game_account)]
-    pub losing_player_two: Account<'info, Player>,
+    pub losing_player_two: Box<Account<'info, Player>>,
     #[account(
         mut,
         constraint = game_queue_account_one.game == game_account.key()
