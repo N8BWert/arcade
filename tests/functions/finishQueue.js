@@ -3,7 +3,7 @@ const anchor = require("@project-serum/anchor");
 const { SystemProgram } = anchor.web3;
 
 async function finishOnePlayerGameQueue(program, provider, currentPlayerAccount, gameQueueAccount, gameAccount) {
-	program.rpc.finishOnePlayerGameQueue({
+	await program.rpc.finishOnePlayerGameQueue({
 		accounts: {
 			currentPlayer: currentPlayerAccount.publicKey,
 			gameQueueAccount: gameQueueAccount.publicKey,
@@ -19,7 +19,7 @@ async function finishOnePlayerGameQueue(program, provider, currentPlayerAccount,
 }
 
 async function finishTwoPlayerGameQueue(program, provider, playerOneAccount, playerTwoAccount, gameQueueAccountOne, gameQueueAccountTwo, gameAccount) {
-	program.rpc.finishTwoPlayerGameQueue({
+	await program.rpc.finishTwoPlayerGameQueue({
 		accounts: {
 			playerOne: playerOneAccount.publicKey,
 			playerTwo: playerTwoAccount.publicKey,
@@ -37,7 +37,7 @@ async function finishTwoPlayerGameQueue(program, provider, playerOneAccount, pla
 }
 
 async function finishTwoPlayerKingOfHillQueue(program, provider, losingPlayerAccount, gameQueueAccountOne, gameQueueAccountTwo, gameAccount) {
-	program.rpc.finishTwoPlayerKingOfHillQueue({
+	await program.rpc.finishTwoPlayerKingOfHillQueue({
 		accounts: {
 			losingPlayer: losingPlayerAccount.publicKey,
 			gameQueueAccountOne: gameQueueAccountOne.publicKey,
@@ -54,7 +54,7 @@ async function finishTwoPlayerKingOfHillQueue(program, provider, losingPlayerAcc
 }
 
 async function finishThreePlayerGameQueue(program, provider, playerOneAccount, playerTwoAccount, playerThreeAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameAccount) {
-	program.rpc.finishThreePlayerGameQueue({
+	await program.rpc.finishThreePlayerGameQueue({
 		accounts: {
 			playerOne: playerOneAccount.publicKey,
 			playerTwo: playerTwoAccount.publicKey,
@@ -74,7 +74,7 @@ async function finishThreePlayerGameQueue(program, provider, playerOneAccount, p
 }
 
 async function finishThreePlayerKingOfHillQueue(program, provider, losingPlayerAccountOne, losingPlayerAccountTwo, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameAccount) {
-	program.rpc.finishThreePlayerKingOfHillQueue({
+	await program.rpc.finishThreePlayerKingOfHillQueue({
 		accounts: {
 			losingPlayerOne: losingPlayerAccountOne.publicKey,
 			losingPlayerTwo: losingPlayerAccountTwo.publicKey,
@@ -93,7 +93,7 @@ async function finishThreePlayerKingOfHillQueue(program, provider, losingPlayerA
 }
 
 async function finishFourPlayerGameQueue(program, provider, playerOneAccount, playerTwoAccount, playerThreeAccount, playerFourAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount) {
-	program.rpc.finishFourPlayerGameQueue({
+	await program.rpc.finishFourPlayerGameQueue({
 		accounts: {
 			playerOne: playerOneAccount.publicKey,
 			playerTwo: playerTwoAccount.publicKey,
@@ -115,7 +115,7 @@ async function finishFourPlayerGameQueue(program, provider, playerOneAccount, pl
 }
 
 async function finishFourPlayerKingOfHillQueue(program, provider, losingPlayerAccountOne, losingPlayerAccountTwo, losingPlayerAccountThree, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount) {
-	program.rpc.finishFourPlayerKingOfHillQueue({
+	await program.rpc.finishFourPlayerKingOfHillQueue({
 		accounts: {
 			losingPlayerOne: losingPlayerAccountOne.publicKey,
 			losingPlayerTwo: losingPlayerAccountTwo.publicKey,
@@ -136,7 +136,7 @@ async function finishFourPlayerKingOfHillQueue(program, provider, losingPlayerAc
 }
 
 async function finishTeamKingOfHillQueue(program, provider, losingPlayerAccountOne, losingPlayerAccountTwo, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount) {
-	program.rpc.finishTeamKingOfHillQueue({
+	await program.rpc.finishTeamKingOfHillQueue({
 		accounts: {
 			losingPlayerOne: losingPlayerAccountOne.publicKey,
 			losingPlayerTwo: losingPlayerAccountTwo.publicKey,

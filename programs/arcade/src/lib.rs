@@ -172,7 +172,11 @@ pub mod arcade {
         game_queue_account.last_player = player_account.key();
         game_queue_account.num_players_in_queue = 1;
 
-        game_account.game_queues.push(game_queue_account.key());
+        if game_account.game_queues.len() == 0 {
+            game_account.game_queues.push(game_queue_account.key());
+        } else {
+            game_account.game_queues[0] = game_queue_account.key();
+        }
 
         Ok(())
     }
@@ -226,7 +230,7 @@ pub mod arcade {
     pub fn finish_one_player_game_queue(ctx: Context<FinishOnePlayerGameQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
-        game_account.game_queues.pop();
+        game_account.game_queues[0] = game_account.key();
 
         Ok(())
     }
@@ -265,8 +269,13 @@ pub mod arcade {
         game_queue_account_two.last_player = game_account.key();
         game_queue_account_two.num_players_in_queue = 0;
 
-        game_account.game_queues.push(game_queue_account_one.key());
-        game_account.game_queues.push(game_queue_account_two.key());
+        if game_account.game_queues.len() == 0 {
+            game_account.game_queues.push(game_queue_account_one.key());
+            game_account.game_queues.push(game_queue_account_two.key());
+        } else {
+            game_account.game_queues[0] = game_queue_account_one.key();
+            game_account.game_queues[1] = game_queue_account_two.key();
+        }
 
         Ok(())
     }
@@ -335,14 +344,14 @@ pub mod arcade {
         let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
         let game_account = & ctx.accounts.game_account;
 
-        (game_queue_account_one.current_player, game_queue_account_one.num_players_in_queue) = match player_one.next_player {
-            Some(player) => (player, game_queue_account_one.num_players_in_queue - 1),
+        (game_queue_account_one.current_player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue) = match player_one.next_player {
+            Some(player) => (player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue - 1),
             None => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
         };
 
-        (game_queue_account_two.current_player, game_queue_account_two.num_players_in_queue) = match player_two.next_player {
-            Some(player) => (player, game_queue_account_two.num_players_in_queue - 1),
-            None => (game_account.key(), 0),
+        (game_queue_account_two.current_player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue) = match player_two.next_player {
+            Some(player) => (player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue - 1),
+            None => (game_account.key(), game_account.key(), 0),
         };
 
         Ok(())
@@ -395,8 +404,8 @@ pub mod arcade {
     pub fn finish_two_player_game_queue(ctx: Context<FinishTwoPlayerGameQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
-        for _ in 0..2 {
-            game_account.game_queues.pop();
+        for i in 0..2 {
+            game_account.game_queues[i] = game_account.key();
         }
 
         Ok(())
@@ -405,8 +414,8 @@ pub mod arcade {
     pub fn finish_two_player_king_of_hill_queue(ctx: Context<FinishTwoPlayerKingOfHillQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
-        for _ in 0..2 {
-            game_account.game_queues.pop();
+        for i in 0..2 {
+            game_account.game_queues[i] = game_account.key();
         }
 
         Ok(())
@@ -452,9 +461,15 @@ pub mod arcade {
         game_queue_account_three.last_player = game_account.key();
         game_queue_account_three.num_players_in_queue = 0;
 
-        game_account.game_queues.push(game_queue_account_one.key());
-        game_account.game_queues.push(game_queue_account_two.key());
-        game_account.game_queues.push(game_queue_account_three.key());
+        if game_account.game_queues.len() == 0 {
+            game_account.game_queues.push(game_queue_account_one.key());
+            game_account.game_queues.push(game_queue_account_two.key());
+            game_account.game_queues.push(game_queue_account_three.key());
+        } else {
+            game_account.game_queues[0] = game_queue_account_one.key();
+            game_account.game_queues[1] = game_queue_account_two.key();
+            game_account.game_queues[2] = game_queue_account_three.key();
+        }
 
         Ok(())
     }
@@ -553,19 +568,19 @@ pub mod arcade {
         let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
         let game_account = & ctx.accounts.game_account;
 
-        (game_queue_account_one.current_player, game_queue_account_one.num_players_in_queue) = match player_one.next_player {
-            Some(player) => (player, game_queue_account_one.num_players_in_queue - 1),
+        (game_queue_account_one.current_player, game_queue_account_two.last_player, game_queue_account_one.num_players_in_queue) = match player_one.next_player {
+            Some(player) => (player, game_queue_account_two.last_player, game_queue_account_one.num_players_in_queue - 1),
             None => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
         };
 
-        (game_queue_account_two.current_player, game_queue_account_two.num_players_in_queue) = match player_two.next_player {
-            Some(player) => (player, game_queue_account_two.num_players_in_queue - 1),
-            None => (game_account.key(), 0),
+        (game_queue_account_two.current_player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue) = match player_two.next_player {
+            Some(player) => (player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue - 1),
+            None => (game_account.key(), game_account.key(), 0),
         };
 
-        (game_queue_account_three.current_player, game_queue_account_three.num_players_in_queue) = match player_three.next_player {
-            Some(player) => (player, game_queue_account_three.num_players_in_queue - 1),
-            None => (game_account.key(), 0),
+        (game_queue_account_three.current_player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue) = match player_three.next_player {
+            Some(player) => (player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue - 1),
+            None => (game_account.key(), game_account.key(), 0),
         };
 
         Ok(())
@@ -738,8 +753,8 @@ pub mod arcade {
     pub fn finish_three_player_game_queue(ctx: Context<FinishThreePlayerGameQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
-        for _ in 0..3 {
-            game_account.game_queues.pop();
+        for i in 0..3 {
+            game_account.game_queues[i] = game_account.key();
         }
 
         Ok(())
@@ -748,8 +763,8 @@ pub mod arcade {
     pub fn finish_three_player_king_of_hill_queue(ctx: Context<FinishThreePlayerKingOfHillQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
-        for _ in 0..3 {
-            game_account.game_queues.pop();
+        for i in 0..3 {
+            game_account.game_queues[i] = game_account.key();
         }
     
         Ok(())
@@ -801,10 +816,17 @@ pub mod arcade {
         game_queue_account_four.last_player = game_account.key();
         game_queue_account_four.num_players_in_queue = 0;
 
-        game_account.game_queues.push(game_queue_account_one.key());
-        game_account.game_queues.push(game_queue_account_two.key());
-        game_account.game_queues.push(game_queue_account_three.key());
-        game_account.game_queues.push(game_queue_account_four.key());
+        if game_account.game_queues.len() == 0 {
+            game_account.game_queues.push(game_queue_account_one.key());
+            game_account.game_queues.push(game_queue_account_two.key());
+            game_account.game_queues.push(game_queue_account_three.key());
+            game_account.game_queues.push(game_queue_account_four.key());
+        } else {
+            game_account.game_queues[0] = game_queue_account_one.key();
+            game_account.game_queues[1] = game_queue_account_two.key();
+            game_account.game_queues[2] = game_queue_account_three.key();
+            game_account.game_queues[3] = game_queue_account_four.key();
+        }
         
         Ok(())
     }
@@ -917,24 +939,24 @@ pub mod arcade {
         let game_queue_account_four = &mut ctx.accounts.game_queue_account_four;
         let game_account = & ctx.accounts.game_account;
 
-        (game_queue_account_one.current_player, game_queue_account_one.num_players_in_queue) = match player_one.next_player {
-            Some(player) => (player, game_queue_account_one.num_players_in_queue - 1),
+        (game_queue_account_one.current_player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue) = match player_one.next_player {
+            Some(player) => (player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue - 1),
             None => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
         };
 
-        (game_queue_account_two.current_player, game_queue_account_two.num_players_in_queue) = match player_two.next_player {
-            Some(player) => (player, game_queue_account_two.num_players_in_queue - 1),
-            None => (game_account.key(), 0),
+        (game_queue_account_two.current_player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue) = match player_two.next_player {
+            Some(player) => (player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue - 1),
+            None => (game_account.key(), game_account.key(), 0),
         };
 
-        (game_queue_account_three.current_player, game_queue_account_three.num_players_in_queue) = match player_three.next_player {
-            Some(player) => (player, game_queue_account_three.num_players_in_queue - 1),
-            None => (game_account.key(), 0),
+        (game_queue_account_three.current_player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue) = match player_three.next_player {
+            Some(player) => (player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue - 1),
+            None => (game_account.key(), game_account.key(), 0),
         };
 
-        (game_queue_account_four.current_player, game_queue_account_four.num_players_in_queue) = match player_four.next_player {
-            Some(player) => (player, game_queue_account_four.num_players_in_queue - 1),
-            None => (game_account.key(), 0),
+        (game_queue_account_four.current_player, game_queue_account_four.last_player, game_queue_account_four.num_players_in_queue) = match player_four.next_player {
+            Some(player) => (player, game_queue_account_four.last_player, game_queue_account_four.num_players_in_queue - 1),
+            None => (game_account.key(), game_account.key(), 0),
         };
 
         Ok(())
@@ -1357,8 +1379,8 @@ pub mod arcade {
     pub fn finish_four_player_game_queue(ctx: Context<FinishFourPlayerGameQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
-        for _ in 0..4 {
-            game_account.game_queues.pop();
+        for i in 0..4 {
+            game_account.game_queues[i] = game_account.key();
         }
 
         Ok(())
@@ -1367,8 +1389,8 @@ pub mod arcade {
     pub fn finish_four_player_king_of_hill_queue(ctx: Context<FinishFourPlayerKingOfHillQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
-        for _ in 0..4 {
-            game_account.game_queues.pop();
+        for i in 0..4 {
+            game_account.game_queues[i] = game_account.key();
         }
 
         Ok(())
@@ -1502,7 +1524,7 @@ pub struct InitOnePlayerGameQueue<'info> {
     #[account(
         mut,
         constraint = game_account.max_players == 1,
-        constraint = game_account.game_queues.get(0) == None
+        constraint = (game_account.game_queues.get(0) == None) || ((*game_account.game_queues.get(0).unwrap()) == game_account.key())
     )]
     pub game_account: Account<'info, Game>,
     #[account(mut)]
@@ -1591,8 +1613,8 @@ pub struct InitTwoPlayerGameQueue<'info> {
     #[account(
         mut,
         constraint = game_account.max_players == 2,
-        constraint = game_account.game_queues.get(0) == None,
-        constraint = game_account.game_queues.get(1) == None
+        constraint = (game_account.game_queues.get(0) == None) || ((*game_account.game_queues.get(0).unwrap()) == game_account.key()),
+        constraint = (game_account.game_queues.get(1) == None) || ((*game_account.game_queues.get(1).unwrap()) == game_account.key())
     )]
     pub game_account: Account<'info, Game>,
     #[account(mut)]
@@ -1634,22 +1656,22 @@ pub struct AdvanceTwoPlayerGameQueue<'info> {
     pub player_two: Account<'info, Player>,
     #[account(
         mut,
-        constraint = game_queue_account_one.current_player == player_one.key(),
-        constraint = game_queue_account_one.game == game_account.key()
+        constraint = game_queue_account_one.current_player == player_one.key() @Errors::CannotAdvanceGameQueueIncorrectPlayers,
+        constraint = game_queue_account_one.game == game_account.key() @Errors::CannotAdvanceGameQueueIncorrectGameKey
     )]
     pub game_queue_account_one: Account<'info, GameQueue>,
     #[account(
         mut,
-        constraint = game_queue_account_two.current_player == player_two.key(),
-        constraint = game_queue_account_two.game == game_account.key()
+        constraint = game_queue_account_two.current_player == player_two.key() @Errors::CannotAdvanceGameQueueIncorrectPlayers,
+        constraint = game_queue_account_two.game == game_account.key() @Errors::CannotAdvanceGameQueueIncorrectGameKey
     )]
     pub game_queue_account_two: Account<'info, GameQueue>,
     #[account(
         mut,
-        constraint = game_account.max_players == 2,
-        constraint = game_account.game_type == 0,
-        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
-        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key()
+        constraint = game_account.max_players == 2 @Errors::CannotAdvanceGameQueueWrongMaxPlayers,
+        constraint = game_account.game_type == 0 @Errors::CannotAdvanceGameQueueWrongGameType,
+        constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key() @Errors::CannotAdvanceGameQueueWrongGameQueue,
+        constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key() @Errors::CannotAdvanceGameQueueWrongGameQueue
     )]
     pub game_account: Account<'info, Game>,
     pub authority: Signer<'info>,
@@ -1767,9 +1789,9 @@ pub struct InitThreePlayerGameQueue<'info> {
     #[account(
         mut,
         constraint = game_account.max_players == 3,
-        constraint = game_account.game_queues.get(0) == None,
-        constraint = game_account.game_queues.get(1) == None,
-        constraint = game_account.game_queues.get(2) == None
+        constraint = (game_account.game_queues.get(0) == None) || ((*game_account.game_queues.get(0).unwrap()) == game_account.key()),
+        constraint = (game_account.game_queues.get(1) == None) || ((*game_account.game_queues.get(1).unwrap()) == game_account.key()),
+        constraint = (game_account.game_queues.get(2) == None) || ((*game_account.game_queues.get(2).unwrap()) == game_account.key())
     )]
     pub game_account: Account<'info, Game>,
     #[account(mut)]
@@ -1990,10 +2012,10 @@ pub struct InitFourPlayerGameQueue<'info> {
     #[account(
         mut,
         constraint = game_account.max_players == 4,
-        constraint = game_account.game_queues.get(0) == None,
-        constraint = game_account.game_queues.get(1) == None,
-        constraint = game_account.game_queues.get(2) == None,
-        constraint = game_account.game_queues.get(3) == None,
+        constraint = (game_account.game_queues.get(0) == None) || ((*game_account.game_queues.get(0).unwrap()) == game_account.key()),
+        constraint = (game_account.game_queues.get(1) == None) || ((*game_account.game_queues.get(1).unwrap()) == game_account.key()),
+        constraint = (game_account.game_queues.get(2) == None) || ((*game_account.game_queues.get(2).unwrap()) == game_account.key()),
+        constraint = (game_account.game_queues.get(3) == None) || ((*game_account.game_queues.get(3).unwrap()) == game_account.key())
     )]
     pub game_account: Box<Account<'info, Game>>,
     #[account(mut)]
@@ -2471,4 +2493,16 @@ pub enum Errors {
 
     #[msg("Unknown team queue organization please restructure and try again")]
     UnknownTeamQueueOrganization,
+
+    #[msg("Unknown game key, this is probably the wrong game queue to advance for this game")]
+    CannotAdvanceGameQueueIncorrectGameKey,
+
+    #[msg("Cannot advance a game queue with different number of players with this method")]
+    CannotAdvanceGameQueueWrongMaxPlayers,
+
+    #[msg("Cannot advance a game queue with different type using this method")]
+    CannotAdvanceGameQueueWrongGameType,
+
+    #[msg("Cannot advance a game queue with different game queues")]
+    CannotAdvanceGameQueueWrongGameQueue,
 }
