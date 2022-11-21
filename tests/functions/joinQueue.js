@@ -94,9 +94,30 @@ async function joinFourPlayerQueue(program, provider, gameAccount, gameQueueAcco
 	return { player, playerAccount };
 }
 
+async function joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccount, lastPlayerAccount) {
+	const playerAccount = anchor.web3.Keypair.generate();
+
+	await program.rpc.joinKingOfHillGameQueue({
+		accounts: {
+			playerAccount: playerAccount.publicKey,
+			lastPlayer: lastPlayerAccount.publicKey,
+			gameQueueAccount: gameQueueAccount.publicKey,
+			gameAccount: gameAccount.publicKey,
+			payer: provider.wallet.publicKey,
+			systemProgram: SystemProgram.programId,
+		},
+		signers: [playerAccount],
+	});
+
+	const player = await program.account.player.fetch(playerAccount.publicKey);
+
+	return { player, playerAccount };
+}
+
 module.exports = {
 	joinOnePlayerQueue,
 	joinTwoPlayerQueue,
 	joinThreePlayerQueue,
 	joinFourPlayerQueue,
+	joinKingOfHillQueue,
 };

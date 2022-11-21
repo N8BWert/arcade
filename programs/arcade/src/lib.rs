@@ -358,44 +358,50 @@ pub mod arcade {
     }
 
     pub fn advance_two_player_king_of_hill_queue(ctx: Context<AdvanceTwoPlayerKingOfHillQueue>) -> Result<()> {
+        let game_account = &mut ctx.accounts.game_account;
         let winning_player = &mut ctx.accounts.winning_player;
         let losing_player = &mut ctx.accounts.losing_player;
         let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
         let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
 
-        if game_queue_account_one.current_player != winning_player.key() && game_queue_account_two.current_player != winning_player.key() {
+        if winning_player.key() != game_queue_account_one.current_player && winning_player.key() != game_queue_account_two.current_player {
             return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
-        } else if game_queue_account_two.current_player != losing_player.key() || game_queue_account_two.current_player != losing_player.key() {
+        } else if losing_player.key() != game_queue_account_one.current_player && losing_player.key() != game_queue_account_two.current_player {
             return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
         }
 
-        // If equal number of players in queue => draw from queue one
-        // If more players in queue 1 => draw from queue one
-        // If more players in queue 2 => draw from queue two
-        if game_queue_account_one.num_players_in_queue >= game_queue_account_two.num_players_in_queue {
-            // If losing player was the current player in queue 1, advance queue simply, otherwise swap contents of queue 1 and queue 2
-            if game_queue_account_one.current_player == losing_player.key() {
-                // Update current player
-                game_queue_account_one.current_player = losing_player.next_player.unwrap();
-            } else {
-                // Update current player for game queue 1 to be the next player in game queue 2
-                game_queue_account_one.current_player = winning_player.next_player.unwrap();
-                winning_player.next_player = losing_player.next_player;
-            }
-            // Update num players in game queue 1
-            game_queue_account_one.num_players_in_queue -= 1;
+        if losing_player.key() == game_queue_account_one.current_player {
+            (game_queue_account_one.current_player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue) = match losing_player.next_player {
+                Some(player) => (player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue - 1),
+                None => match winning_player.next_player {
+                    Some(player) => {
+                        let last_player_two = game_queue_account_two.last_player;
+                        let old_queue_two_num_players = game_queue_account_two.num_players_in_queue - 1;
+                        game_queue_account_two.last_player = winning_player.key();
+                        game_queue_account_two.num_players_in_queue = 1;
+                        winning_player.next_player = None;
+
+                        (player, last_player_two, old_queue_two_num_players)
+                    },
+                    None => (game_account.key(), game_account.key(), 0),
+                },
+            };
         } else {
-            // If losing player was the current player in queue 2, advance queue simply, other wise swap contents of queue 1 and queue 2
-            if game_queue_account_two.current_player == losing_player.key() {
-                // Update current player
-                game_queue_account_two.current_player = losing_player.next_player.unwrap();
-            } else {
-                // Update current player for game queue 2 to be the next player in game queue 2
-                game_queue_account_two.current_player = winning_player.next_player.unwrap();
-                winning_player.next_player = losing_player.next_player;
-            }
-            // Update num players in game queue 2
-            game_queue_account_two.num_players_in_queue -= 1;
+            (game_queue_account_two.current_player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue) = match losing_player.next_player {
+                Some(player) => (player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue - 1),
+                None => match winning_player.next_player {
+                    Some(player) => {
+                        let last_player_one = game_queue_account_one.last_player;
+                        let old_queue_one_num_players = game_queue_account_one.num_players_in_queue - 1;
+                        game_queue_account_one.last_player = winning_player.key();
+                        game_queue_account_one.num_players_in_queue = 1;
+                        winning_player.next_player = None;
+                        
+                        (player, last_player_one, old_queue_one_num_players)
+                    },
+                    None => (game_account.key(), game_account.key(), 0),
+                },
+            };
         }
 
         return Ok(());
@@ -1406,6 +1412,55 @@ pub mod arcade {
         Ok(())
     }
 
+    pub fn join_king_of_hill_game_queue(ctx: Context<JoinKingOfHillGameQueue>) -> Result<()> {
+        let player_account = &mut ctx.accounts.player_account;
+        let last_player = &mut ctx.accounts.last_player;
+        let game_queue_account = &mut ctx.accounts.game_queue_account;
+        let game_account = &mut ctx.accounts.game_account;
+        let payer = &mut ctx.accounts.payer;
+
+        let mut correct_game_queue = false;
+
+        for i in 0..(game_account.max_players as usize) {
+            if (*game_account.game_queues.get(i).unwrap()) == game_queue_account.key() {
+                correct_game_queue = true;
+            }
+        }
+
+        if !correct_game_queue {
+            return Err(Errors::CannotAdvanceGameQueueWrongGameQueue.into());
+        }
+
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            TWENTY_FIVE_CENTS,
+        );
+
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
+
+        player_account.wallet_key = payer.key();
+        player_account.next_player = None;
+
+        if game_queue_account.current_player == game_account.key() {
+            game_queue_account.current_player = player_account.key();
+        }
+
+        if game_queue_account.last_player == last_player.key() {
+            last_player.next_player = Some(player_account.key());
+        }
+        game_queue_account.last_player = player_account.key();
+        game_queue_account.num_players_in_queue += 1;
+
+        Ok(())
+    }
+
     /// Whenever a game is played the game should make a call to the update leaderboard function to see if the leaderboard
     /// should be updated.
     pub fn update_leaderboard(ctx: Context<GameEnd>, player_name: String, score: u128, wallet_key: Pubkey) -> Result<()> {
@@ -1639,6 +1694,7 @@ pub struct JoinTwoPlayerGameQueue<'info> {
     #[account(
         mut,
         constraint = game_account.max_players == 2,
+        constraint = game_account.game_type == 0,
         constraint = (*game_account.game_queues.get(0).unwrap()) == game_queue_account_one.key(),
         constraint = (*game_account.game_queues.get(1).unwrap()) == game_queue_account_two.key()
     )]
@@ -2348,6 +2404,21 @@ pub struct FinishTeamKingOfHillQueue<'info> {
     )]
     pub game_account: Account<'info, Game>,
     pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct JoinKingOfHillGameQueue<'info> {
+    #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
+    pub player_account: Account<'info, Player>,
+    #[account(mut, constraint = last_player.next_player == None)]
+    pub last_player: Account<'info, Player>,
+    #[account(mut, constraint = (game_queue_account.last_player == last_player.key()) || (game_queue_account.last_player == game_account.key()))]
+    pub game_queue_account: Account<'info, GameQueue>,
+    #[account(mut, constraint = game_account.game_type == 1)]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
