@@ -605,14 +605,6 @@ pub mod arcade {
         let mut player_mappings = [0, 0, 0];
         let mut winning_queue_num = 0;
 
-        if queues[0].current_player != winning_player.key() && queues[1].current_player != winning_player.key() && queues[1].current_player != winning_player.key() {
-            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
-        } else if queues[0].current_player != losing_player_one.key() && queues[1].current_player != losing_player_two.key() && queues[1].current_player != losing_player_two.key() {
-            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
-        } else if queues[0].current_player != losing_player_two.key() && queues[1].current_player != losing_player_two.key() && queues[1].current_player != losing_player_two.key() {
-            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
-        }
-
         for i in 0..3 {
             if queues[i].current_player == winning_player.key() {
                 player_mappings[i] = 1;
@@ -621,7 +613,9 @@ pub mod arcade {
                 player_mappings[i] = 2;
             } else if queues[i].current_player == losing_player_two.key() {
                 player_mappings[i] = 3;
-            } 
+            } else {
+                return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+            }
         }
 
         for i in 0..3 {
