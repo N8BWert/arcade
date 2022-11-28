@@ -592,165 +592,76 @@ pub mod arcade {
         Ok(())
     }
 
+    /// 7 8 9 ->     9  |  5     ->      
+    /// 4 5 6 -> 7 8 6  |  4     -> 5    
+    /// 1 2 3 -> 4 5 3  |  1 2 3 -> 4 _ 3
+    /// x x o           |  x x o
     pub fn advance_three_player_king_of_hill_queue(ctx: Context<AdvanceThreePlayerKingOfHillQueue>) -> Result<()> {
         let winning_player = &mut ctx.accounts.winning_player;
         let losing_player_one = &mut ctx.accounts.losing_player_one;
         let losing_player_two = &mut ctx.accounts.losing_player_two;
-        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
-        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
-        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
+        let queues = [&mut ctx.accounts.game_queue_account_one, &mut ctx.accounts.game_queue_account_two, &mut ctx.accounts.game_queue_account_three];
         let game_account = & ctx.accounts.game_account;
+        let mut player_mappings = [0, 0, 0];
+        let mut winning_queue_num = 0;
 
-        if game_queue_account_one.current_player != winning_player.key() && game_queue_account_two.current_player != winning_player.key() && game_queue_account_three.current_player != winning_player.key() {
+        if queues[0].current_player != winning_player.key() && queues[1].current_player != winning_player.key() && queues[1].current_player != winning_player.key() {
             return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
-        } else if game_queue_account_one.current_player != losing_player_one.key() && game_queue_account_two.current_player != losing_player_two.key() && game_queue_account_three.current_player != losing_player_two.key() {
+        } else if queues[0].current_player != losing_player_one.key() && queues[1].current_player != losing_player_two.key() && queues[1].current_player != losing_player_two.key() {
             return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
-        } else if game_queue_account_one.current_player != losing_player_two.key() && game_queue_account_two.current_player != losing_player_two.key() && game_queue_account_three.current_player != losing_player_two.key() {
+        } else if queues[0].current_player != losing_player_two.key() && queues[1].current_player != losing_player_two.key() && queues[1].current_player != losing_player_two.key() {
             return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
         }
 
-        let mut winning_queue: u8 = 0;
-
-        // game queue 1
-        if game_queue_account_one.current_player == losing_player_one.key() {
-            // Advance game_queue_one normally
-            (game_queue_account_one.current_player, game_queue_account_one.last_player) = match losing_player_one.next_player {
-                Some(player) => (player, game_queue_account_one.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-
-            // Decrease number of players in the queue
-            game_queue_account_one.num_players_in_queue -= 1;
-        } else if game_queue_account_one.current_player == losing_player_two.key() {
-            // Advance game_queue_one_normally
-            (game_queue_account_one.current_player, game_queue_account_one.last_player) = match losing_player_two.next_player {
-                Some(player) => (player, game_queue_account_one.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-
-            // Decrease number of players in the queue
-            game_queue_account_one.num_players_in_queue -= 1;
-        } else {
-            winning_queue = 1;
+        for i in 0..3 {
+            if queues[i].current_player == winning_player.key() {
+                player_mappings[i] = 1;
+                winning_queue_num = i;
+            } else if queues[i].current_player == losing_player_one.key() {
+                player_mappings[i] = 2;
+            } else if queues[i].current_player == losing_player_two.key() {
+                player_mappings[i] = 3;
+            } 
         }
 
-        if game_queue_account_two.current_player == losing_player_one.key() {
-            (game_queue_account_two.current_player, game_queue_account_two.last_player) = match losing_player_one.next_player {
-                Some(player) => (player, game_queue_account_two.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_two.num_players_in_queue -= 1;
-        } else if game_queue_account_two.current_player == losing_player_two.key() {
-            (game_queue_account_two.current_player, game_queue_account_two.last_player) = match losing_player_two.next_player {
-                Some(player) => (player, game_queue_account_two.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_two.num_players_in_queue -= 1;
-        } else {
-            winning_queue = 2
-        }
+        for i in 0..3 {
+            if player_mappings[i] == 2 {
+                (queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue) = match losing_player_one.next_player {
+                    Some(player) => (player, queues[i].last_player, queues[i].num_players_in_queue - 1),
+                    None => match winning_player.next_player {
+                        Some(player) => {
+                            let old_winning_queue_last_player = queues[winning_queue_num].last_player;
+                            let old_num_players = queues[winning_queue_num].num_players_in_queue - 1;
 
-        // G H I    G   I    H   I
-        // D E F -> D H F -> E G F
-        // A B C -> A E C -> A D C
-        // 1 2 3    1 2 3    1 2 3
-        if winning_queue == 1 {
-            let og_second_current_player = game_queue_account_two.current_player;
-            let og_second_last_player = game_queue_account_two.last_player;
-            let og_second_num_players = game_queue_account_two.num_players_in_queue;
+                            winning_player.next_player = None;
+                            queues[winning_queue_num].last_player = winning_player.key();
+                            queues[winning_queue_num].num_players_in_queue = 1;
 
-            game_queue_account_two.current_player = match winning_player.next_player {
-                Some(player) => player,
-                None => game_account.key(),
-            };
-            game_queue_account_two.last_player = game_queue_account_one.last_player;
-            game_queue_account_two.num_players_in_queue = game_queue_account_one.num_players_in_queue - 1;
+                            (player, old_winning_queue_last_player, old_num_players)
+                        },
+                        None => (game_account.key(), game_account.key(), 0),
+                    },
+                }
+            } else if player_mappings[i] == 3 {
+                (queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue) = match losing_player_two.next_player {
+                    Some(player) => (player, queues[i].last_player, queues[i].num_players_in_queue - 1),
+                    None => match winning_player.next_player {
+                        Some(player) => {
+                            let old_winning_queue_last_player = queues[winning_queue_num].last_player;
+                            let old_num_players = queues[winning_queue_num].num_players_in_queue - 1;
 
-            winning_player.next_player = Some(og_second_current_player);
-            game_queue_account_one.last_player = og_second_last_player;
-            game_queue_account_one.num_players_in_queue = og_second_num_players;
-        }
+                            winning_player.next_player = None;
+                            queues[winning_queue_num].last_player = winning_player.key();
+                            queues[winning_queue_num].num_players_in_queue = 1;
 
-        if game_queue_account_three.current_player == losing_player_one.key() {
-            (game_queue_account_three.current_player, game_queue_account_three.last_player) = match losing_player_one.next_player {
-                Some(player) => (player, game_queue_account_three.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_three.num_players_in_queue -= 1;
-        } else if game_queue_account_three.current_player == losing_player_two.key() {
-            (game_queue_account_three.current_player, game_queue_account_three.last_player) = match losing_player_two.next_player {
-                Some(player) => (player, game_queue_account_three.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_three.num_players_in_queue -= 1;
-        }
-
-        // G   I    G        I            G H I    G H      G I
-        // D H F -> D H I -> F H G   ||   D E F -> D E I -> D F H
-        // A E C -> A E F -> A E D   ||   A B C -> A B F -> A B E
-        // 1 2 3    1 2 3    1 2 3        1 2 3    1 2 3    1 2 3
-        if winning_queue == 1 {
-            let og_third_current_player = game_queue_account_three.current_player;
-            let og_third_last_player = game_queue_account_three.last_player;
-            let og_third_num_players = game_queue_account_three.num_players_in_queue;
-
-            game_queue_account_three.current_player = match winning_player.next_player {
-                Some(player) => player,
-                None => game_account.key(),
-            };
-            game_queue_account_three.last_player = game_queue_account_one.last_player;
-            game_queue_account_three.num_players_in_queue = game_queue_account_one.num_players_in_queue - 1;
-
-            winning_player.next_player = Some(og_third_current_player);
-            game_queue_account_one.last_player = og_third_last_player;
-            game_queue_account_one.num_players_in_queue = og_third_num_players;
-        } else if winning_queue == 2 {
-            let og_third_current_player = game_queue_account_three.current_player;
-            let og_third_last_player = game_queue_account_three.last_player;
-            let og_third_num_players = game_queue_account_three.num_players_in_queue;
-
-            game_queue_account_three.current_player = match winning_player.next_player {
-                Some(player) => player,
-                None => game_account.key(),
-            };
-            game_queue_account_three.last_player = game_queue_account_two.last_player;
-            game_queue_account_three.num_players_in_queue = game_queue_account_two.num_players_in_queue - 1;
-
-            winning_player.next_player = Some(og_third_current_player);
-            game_queue_account_two.last_player = og_third_last_player;
-            game_queue_account_two.num_players_in_queue = og_third_num_players;
-        }
-
-        // swap queues 2 and 3 if 3 has more members than 2
-        if game_queue_account_three.num_players_in_queue > game_queue_account_two.num_players_in_queue {
-            let temp_current_player = game_queue_account_three.current_player;
-            let temp_last_player = game_queue_account_three.last_player;
-            let temp_queue_length = game_queue_account_three.num_players_in_queue;
-
-            // swap
-            game_queue_account_three.current_player = game_queue_account_two.current_player;
-            game_queue_account_three.last_player = game_queue_account_two.last_player;
-            game_queue_account_three.num_players_in_queue = game_queue_account_two.num_players_in_queue;
-
-            game_queue_account_two.current_player = temp_current_player;
-            game_queue_account_two.last_player = temp_last_player;
-            game_queue_account_two.num_players_in_queue = temp_queue_length;
-        }
-
-        // swap queues 1 and 2 if 2 has more members than 1
-        if game_queue_account_two.num_players_in_queue > game_queue_account_one.num_players_in_queue {
-            let temp_current_player = game_queue_account_two.current_player;
-            let temp_last_player = game_queue_account_two.last_player;
-            let temp_queue_length = game_queue_account_two.num_players_in_queue;
-
-            // swap
-            game_queue_account_two.current_player = game_queue_account_one.current_player;
-            game_queue_account_two.last_player = game_queue_account_one.last_player;
-            game_queue_account_two.num_players_in_queue = game_queue_account_one.num_players_in_queue;
-
-            game_queue_account_one.current_player = temp_current_player;
-            game_queue_account_one.last_player = temp_last_player;
-            game_queue_account_one.num_players_in_queue = temp_queue_length;
+                            (player, old_winning_queue_last_player, old_num_players)
+                        },
+                        None => {
+                            (game_account.key(), game_account.key(), 0)
+                        },
+                    },
+                };
+            }
         }
 
         Ok(())
@@ -973,294 +884,89 @@ pub mod arcade {
         let losing_player_one = &mut ctx.accounts.losing_player_one;
         let losing_player_two = &mut ctx.accounts.losing_player_two;
         let losing_player_three = &mut ctx.accounts.losing_player_three;
-        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
-        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
-        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
-        let game_queue_account_four = &mut ctx.accounts.game_queue_account_four;
+        let queues = [
+            &mut ctx.accounts.game_queue_account_one,
+            &mut ctx.accounts.game_queue_account_two,
+            &mut ctx.accounts.game_queue_account_three,
+            &mut ctx.accounts.game_queue_account_four
+        ];
         let game_account = & ctx.accounts.game_account;
+        let mut player_mappings = [0, 0, 0, 0];
+        let mut winning_queue_num = 0;
 
-        if game_queue_account_one.current_player != winning_player.key() &&
-           game_queue_account_one.current_player != losing_player_one.key() &&
-           game_queue_account_one.current_player != losing_player_two.key() &&
-           game_queue_account_one.current_player != losing_player_three.key() {
-            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
-        } else if game_queue_account_two.current_player != winning_player.key() &&
-                  game_queue_account_two.current_player != losing_player_one.key() &&
-                  game_queue_account_two.current_player != losing_player_two.key() &&
-                  game_queue_account_two.current_player != losing_player_three.key() {
-            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
-        } else if game_queue_account_three.current_player != winning_player.key() &&
-                  game_queue_account_three.current_player != losing_player_one.key() &&
-                  game_queue_account_three.current_player != losing_player_two.key() &&
-                  game_queue_account_three.current_player != losing_player_three.key() {
-            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
-        } else if game_queue_account_four.current_player != winning_player.key() &&
-                  game_queue_account_four.current_player != losing_player_one.key() &&
-                  game_queue_account_four.current_player != losing_player_two.key() &&
-                  game_queue_account_four.current_player != losing_player_three.key() {
-            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        for i in 0..4 {
+            if queues[i].current_player == winning_player.key() {
+                player_mappings[i] = 1;
+                winning_queue_num = i;
+            } else if queues[i].current_player == losing_player_one.key() {
+                player_mappings[i] = 2;
+            } else if queues[i].current_player == losing_player_two.key() {
+                player_mappings[i] = 3;
+            } else if queues[i].current_player == losing_player_three.key() {
+                player_mappings[i] = 4;
+            } else {
+                return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+            }
         }
 
-        let mut winning_queue: u8 = 0;
+        for i in 0..4 {
+            match player_mappings[i] {
+                2 => {
+                    (queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue) = match losing_player_one.next_player {
+                        Some(player) => (player, queues[i].last_player, queues[i].num_players_in_queue - 1),
+                        None => match winning_player.next_player {
+                            Some(player) => {
+                                let old_last_player = queues[winning_queue_num].last_player;
+                                let old_num_players = queues[winning_queue_num].num_players_in_queue - 1;
 
-        // game queue 1
-        if game_queue_account_one.current_player == losing_player_one.key() {
-            // Advance game queue one normally
-            (game_queue_account_one.current_player, game_queue_account_one.last_player) = match losing_player_one.next_player {
-                Some(player) => (player, game_queue_account_one.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_one.num_players_in_queue -= 1;
-        } else if game_queue_account_one.current_player == losing_player_two.key() {
-            // Advance game queue normally
-            (game_queue_account_one.current_player, game_queue_account_one.last_player) = match losing_player_two.next_player {
-                Some(player) => (player, game_queue_account_one.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_one.num_players_in_queue -= 1;
-        } else if game_queue_account_one.current_player == losing_player_three.key() {
-            // Advance game queue normally
-            (game_queue_account_one.current_player, game_queue_account_one.last_player) = match losing_player_three.next_player {
-                Some(player) => (player, game_queue_account_one.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_one.num_players_in_queue -= 1;
-        } else {
-            winning_queue = 1;
-        }
+                                winning_player.next_player = None;
+                                queues[winning_queue_num].last_player = winning_player.key();
+                                queues[winning_queue_num].num_players_in_queue = 1;
 
-        // game queue 2
-        if game_queue_account_two.current_player == losing_player_one.key() {
-            // Advance game queue one normally
-            (game_queue_account_two.current_player, game_queue_account_two.last_player) = match losing_player_one.next_player {
-                Some(player) => (player, game_queue_account_two.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_two.num_players_in_queue -= 1;
-        } else if game_queue_account_two.current_player == losing_player_two.key() {
-            // Advance game queue normally
-            (game_queue_account_two.current_player, game_queue_account_two.last_player) = match losing_player_two.next_player {
-                Some(player) => (player, game_queue_account_two.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_two.num_players_in_queue -= 1;
-        } else if game_queue_account_two.current_player == losing_player_three.key() {
-            // Advance game queue normally
-            (game_queue_account_two.current_player, game_queue_account_two.last_player) = match losing_player_three.next_player {
-                Some(player) => (player, game_queue_account_two.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_two.num_players_in_queue -= 1;
-        } else {
-            winning_queue = 2;
-        }
+                                (player, old_last_player, old_num_players)
+                            },
+                            None => (game_account.key(), game_account.key(), 0),
+                        },
+                    };
+                },
+                3 => {
+                    (queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue) = match losing_player_two.next_player {
+                        Some(player) => (player, queues[i].last_player, queues[i].num_players_in_queue - 1),
+                        None => match winning_player.next_player {
+                            Some(player) => {
+                                let old_last_player = queues[winning_queue_num].last_player;
+                                let old_num_players = queues[winning_queue_num].num_players_in_queue - 1;
 
-        // I J K L    I   K L    J   K L
-        // E F G H -> E J G H -> F I G H
-        // A B C D -> A F C D -> A E C D
-        // 1 2 3 4    1 2 3 4    1 2 3 4
-        if winning_queue == 1 {
-            let og_second_current_player = game_queue_account_two.current_player;
-            let og_second_last_player = game_queue_account_two.last_player;
-            let og_second_num_players = game_queue_account_two.num_players_in_queue;
+                                winning_player.next_player = None;
+                                queues[winning_queue_num].last_player = winning_player.key();
+                                queues[winning_queue_num].num_players_in_queue = 1;
 
-            game_queue_account_two.current_player = match winning_player.next_player {
-                Some(player) => player,
-                None => game_account.key(),
-            };
-            game_queue_account_two.last_player = game_queue_account_one.last_player;
-            game_queue_account_two.num_players_in_queue = game_queue_account_one.num_players_in_queue - 1;
+                                (player, old_last_player, old_num_players)
+                            },
+                            None => (game_account.key(), game_account.key(), 0),
+                        },
+                    };
+                },
+                4 => {
+                    (queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue) = match losing_player_three.next_player {
+                        Some(player) => (player, queues[i].last_player, queues[i].num_players_in_queue - 1),
+                        None => match winning_player.next_player {
+                            Some(player) => {
+                                let old_last_player = queues[winning_queue_num].last_player;
+                                let old_num_players = queues[winning_queue_num].num_players_in_queue - 1;
 
-            winning_player.next_player = Some(og_second_current_player);
-            game_queue_account_one.last_player = og_second_last_player;
-            game_queue_account_one.num_players_in_queue = og_second_num_players;
-        }
+                                winning_player.next_player = None;
+                                queues[winning_queue_num].last_player = winning_player.key();
+                                queues[winning_queue_num].num_players_in_queue = 1;
 
-        // game queue 3
-        if game_queue_account_three.current_player == losing_player_one.key() {
-            // Advance game queue one normally
-            (game_queue_account_three.current_player, game_queue_account_three.last_player) = match losing_player_one.next_player {
-                Some(player) => (player, game_queue_account_three.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_three.num_players_in_queue -= 1;
-        } else if game_queue_account_three.current_player == losing_player_two.key() {
-            // Advance game queue normally
-            (game_queue_account_three.current_player, game_queue_account_three.last_player) = match losing_player_two.next_player {
-                Some(player) => (player, game_queue_account_three.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_three.num_players_in_queue -= 1;
-        } else if game_queue_account_three.current_player == losing_player_three.key() {
-            // Advance game queue normally
-            (game_queue_account_three.current_player, game_queue_account_three.last_player) = match losing_player_three.next_player {
-                Some(player) => (player, game_queue_account_three.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_three.num_players_in_queue -= 1;
-        } else {
-            winning_queue = 3;
-        }
-
-        // I   K L    I     L    K     L        I J K L    I J   L    I K   L
-        // E J G H -> E J K H -> G J I H   ||   E F G H -> E F K H -> E G J H
-        // A F C D -> A F G D -> A F E D   ||   A B C D -> A B G D -> A B F D
-        // 1 2 3 4    1 2 3 4    1 2 3 4        1 2 3 4    1 2 3 4    1 2 3 4
-        if winning_queue == 1 {
-            let og_third_current_player = game_queue_account_three.current_player;
-            let og_third_last_player = game_queue_account_three.last_player;
-            let og_third_num_players = game_queue_account_three.num_players_in_queue;
-
-            game_queue_account_three.current_player = match winning_player.next_player {
-                Some(player) => player,
-                None => game_account.key(),
-            };
-            game_queue_account_three.last_player = game_queue_account_one.last_player;
-            game_queue_account_three.num_players_in_queue = game_queue_account_one.num_players_in_queue - 1;
-
-            winning_player.next_player = Some(og_third_current_player);
-            game_queue_account_one.last_player = og_third_last_player;
-            game_queue_account_one.num_players_in_queue = og_third_num_players;
-        } else if winning_queue == 2 {
-            let og_third_current_player = game_queue_account_three.current_player;
-            let og_third_last_player = game_queue_account_three.last_player;
-            let og_third_num_players = game_queue_account_three.num_players_in_queue;
-
-            game_queue_account_three.current_player = match winning_player.next_player {
-                Some(player) => player,
-                None => game_account.key(),
-            };
-            game_queue_account_three.last_player = game_queue_account_two.last_player;
-            game_queue_account_three.num_players_in_queue = game_queue_account_two.num_players_in_queue - 1;
-
-            winning_player.next_player = Some(og_third_current_player);
-            game_queue_account_two.last_player = og_third_last_player;
-            game_queue_account_two.num_players_in_queue = og_third_num_players;
-        }
-
-        // game queue 4
-        if game_queue_account_four.current_player == losing_player_one.key() {
-            // Advance game queue one normally
-            (game_queue_account_four.current_player, game_queue_account_four.last_player) = match losing_player_one.next_player {
-                Some(player) => (player, game_queue_account_four.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_four.num_players_in_queue -= 1;
-        } else if game_queue_account_four.current_player == losing_player_two.key() {
-            // Advance game queue normally
-            (game_queue_account_four.current_player, game_queue_account_four.last_player) = match losing_player_two.next_player {
-                Some(player) => (player, game_queue_account_four.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_four.num_players_in_queue -= 1;
-        } else if game_queue_account_four.current_player == losing_player_three.key() {
-            // Advance game queue normally
-            (game_queue_account_four.current_player, game_queue_account_four.last_player) = match losing_player_three.next_player {
-                Some(player) => (player, game_queue_account_four.last_player),
-                None => (game_account.key(), game_account.key()),
-            };
-            game_queue_account_four.num_players_in_queue -= 1;
-        } else {
-            winning_queue = 4;
-        }
-
-        // I   K L    I     L    K     L        I J K L    I J   L    I K   L
-        // E J G H -> E J K H -> G J I H   ||   E F G H -> E F K H -> E G J H
-        // A F C D -> A F G D -> A F E D   ||   A B C D -> A B G D -> A B F D
-        // 1 2 3 4    1 2 3 4    1 2 3 4        1 2 3 4    1 2 3 4    1 2 3 4
-        if winning_queue == 1 {
-            let og_fourth_current_player = game_queue_account_four.current_player;
-            let og_fourth_last_player = game_queue_account_four.last_player;
-            let og_fourth_num_players = game_queue_account_four.num_players_in_queue;
-
-            game_queue_account_four.current_player = match winning_player.next_player {
-                Some(player) => player,
-                None => game_account.key(),
-            };
-            game_queue_account_four.last_player = game_queue_account_one.last_player;
-            game_queue_account_four.num_players_in_queue = game_queue_account_one.num_players_in_queue - 1;
-
-            winning_player.next_player = Some(og_fourth_current_player);
-            game_queue_account_one.last_player = og_fourth_last_player;
-            game_queue_account_one.num_players_in_queue = og_fourth_num_players;
-        } else if winning_queue == 2 {
-            let og_fourth_current_player = game_queue_account_four.current_player;
-            let og_fourth_last_player = game_queue_account_four.last_player;
-            let og_fourth_num_players = game_queue_account_four.num_players_in_queue;
-
-            game_queue_account_four.current_player = match winning_player.next_player {
-                Some(player) => player,
-                None => game_account.key(),
-            };
-            game_queue_account_four.last_player = game_queue_account_two.last_player;
-            game_queue_account_four.num_players_in_queue = game_queue_account_two.num_players_in_queue - 1;
-
-            winning_player.next_player = Some(og_fourth_current_player);
-            game_queue_account_two.last_player = og_fourth_last_player;
-            game_queue_account_two.num_players_in_queue = og_fourth_num_players;
-        } else if winning_queue == 3 {
-            let og_fourth_current_player = game_queue_account_four.current_player;
-            let og_fourth_last_player = game_queue_account_four.last_player;
-            let og_fourth_num_players = game_queue_account_four.num_players_in_queue;
-
-            game_queue_account_four.current_player = match winning_player.next_player {
-                Some(player) => player,
-                None => game_account.key(),
-            };
-            game_queue_account_four.last_player = game_queue_account_three.last_player;
-            game_queue_account_four.num_players_in_queue = game_queue_account_three.num_players_in_queue - 1;
-
-            winning_player.next_player = Some(og_fourth_current_player);
-            game_queue_account_three.last_player = og_fourth_last_player;
-            game_queue_account_three.num_players_in_queue = og_fourth_num_players;
-        }
-
-        // swap queues 3 and 4 if 4 has more members than 3
-        if game_queue_account_four.num_players_in_queue > game_queue_account_three.num_players_in_queue {
-            let temp_current_player = game_queue_account_four.current_player;
-            let temp_last_player = game_queue_account_four.last_player;
-            let temp_queue_length = game_queue_account_four.num_players_in_queue;
-
-            // swap
-            game_queue_account_four.current_player = game_queue_account_three.current_player;
-            game_queue_account_four.last_player = game_queue_account_three.last_player;
-            game_queue_account_four.num_players_in_queue = game_queue_account_three.num_players_in_queue;
-
-            game_queue_account_three.current_player = temp_current_player;
-            game_queue_account_three.last_player = temp_last_player;
-            game_queue_account_three.num_players_in_queue = temp_queue_length;
-        }
-
-        // swap queues 2 and 3 if 3 has more members than 2
-        if game_queue_account_three.num_players_in_queue > game_queue_account_two.num_players_in_queue {
-            let temp_current_player = game_queue_account_three.current_player;
-            let temp_last_player = game_queue_account_three.last_player;
-            let temp_queue_length = game_queue_account_three.num_players_in_queue;
-
-            // swap
-            game_queue_account_three.current_player = game_queue_account_two.current_player;
-            game_queue_account_three.last_player = game_queue_account_two.last_player;
-            game_queue_account_three.num_players_in_queue = game_queue_account_two.num_players_in_queue;
-
-            game_queue_account_two.current_player = temp_current_player;
-            game_queue_account_two.last_player = temp_last_player;
-            game_queue_account_two.num_players_in_queue = temp_queue_length;
-        }
-
-        // swap queues 1 and 2 if 2 has more members than 1
-        if game_queue_account_two.num_players_in_queue > game_queue_account_one.num_players_in_queue {
-            let temp_current_player = game_queue_account_two.current_player;
-            let temp_last_player = game_queue_account_two.last_player;
-            let temp_queue_length = game_queue_account_two.num_players_in_queue;
-
-            // swap
-            game_queue_account_two.current_player = game_queue_account_one.current_player;
-            game_queue_account_two.last_player = game_queue_account_one.last_player;
-            game_queue_account_two.num_players_in_queue = game_queue_account_one.num_players_in_queue;
-
-            game_queue_account_one.current_player = temp_current_player;
-            game_queue_account_one.last_player = temp_last_player;
-            game_queue_account_one.num_players_in_queue = temp_queue_length;
+                                (player, old_last_player, old_num_players)
+                            },
+                            None => (game_account.key(), game_account.key(), 0),
+                        },
+                    };
+                },
+                _ => continue,
+            }
         }
 
         Ok(())
