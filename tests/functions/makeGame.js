@@ -2,14 +2,14 @@ const anchor = require("@project-serum/anchor");
 
 const { SystemProgram } = anchor.web3;
 
-async function makeGame(program, provider, arcadeAccount, mostRecentGameAccount) {
+async function makeGame(program, provider, arcadeAccount, mostRecentGameAccount, numPlayers, gameType) {
 	const gameAccount = anchor.web3.Keypair.generate();
 	const title = "game title";
 	const webGLHash = "this is the webgl hash";
 	const gameArtHash = "this is the game art hash";
 	const gameWallet = anchor.web3.Keypair.generate();
 
-	await program.rpc.createGame(title, webGLHash, gameArtHash, gameWallet.publicKey, {
+	await program.rpc.createGame(title, webGLHash, gameArtHash, numPlayers, gameType, {
 		accounts: {
 			arcadeAccount: arcadeAccount.publicKey,
 			owner: provider.wallet.publicKey,

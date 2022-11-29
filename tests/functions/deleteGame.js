@@ -6,9 +6,9 @@ async function deleteGame(program, provider, gameAccount, earlierGameAccount, la
 	await program.rpc.deleteGame({
 		accounts: {
 			gameAccount: gameAccount.publicKey,
-			earlierGame: earlierGameAccount.publicKey,
-			laterGame: laterGameAccount.publicKey,
-			ownerWallet: provider.wallet.publicKey,
+			youngerGame: earlierGameAccount.publicKey,
+			olderGame: laterGameAccount.publicKey,
+			owner: provider.wallet.publicKey,
 			systemProgram: SystemProgram.programId,
 		}
 	});
