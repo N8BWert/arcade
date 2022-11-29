@@ -613,6 +613,8 @@ pub mod arcade {
                 player_mappings[i] = 2;
             } else if queues[i].current_player == losing_player_two.key() {
                 player_mappings[i] = 3;
+            } else if queues[i].current_player == game_account.key() {
+                player_mappings[i] = 5;
             } else {
                 return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
             }
@@ -898,6 +900,8 @@ pub mod arcade {
                 player_mappings[i] = 3;
             } else if queues[i].current_player == losing_player_three.key() {
                 player_mappings[i] = 4;
+            } else if queues[i].current_player == game_account.key() {
+                player_mappings[i] = 5;
             } else {
                 return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
             }
@@ -2276,4 +2280,7 @@ pub enum Errors {
 
     #[msg("Cannot advance a game queue with different game queues")]
     CannotAdvanceGameQueueWrongGameQueue,
+
+    #[msg("TEST ERROR")]
+    TestError,
 }

@@ -126,7 +126,7 @@ async function advanceFourPlayerQueue(program, provider, playerOneAccount, playe
 }
 
 async function advanceFourPlayerKingOfHillQueue(program, provider, winningPlayerAccount, losingPlayerAccountOne, losingPlayerAccountTwo, losingPlayerAccountThree, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount) {
-	await program.rpc.advanceThreePlayerKingOfHillQueue({
+	await program.rpc.advanceFourPlayerKingOfHillQueue({
 		accounts: {
 			winningPlayer: winningPlayerAccount.publicKey,
 			losingPlayerOne: losingPlayerAccountOne.publicKey,
@@ -151,7 +151,7 @@ async function advanceFourPlayerKingOfHillQueue(program, provider, winningPlayer
 }
 
 async function advanceTeamKingOfHillQueue(program, provider, winningPlayerAccountOne, winningPlayerAccountTwo, losingPlayerAccountOne, losingPlayerAccountTwo, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount) {
-	await program.rpc.advanceThreePlayerKingOfHillQueue({
+	await program.rpc.advanceTeamKingOfHillQueue({
 		accounts: {
 			winningPlayerOne: winningPlayerAccountOne.publicKey,
 			winningPlayerTwo: winningPlayerAccountTwo.publicKey,
