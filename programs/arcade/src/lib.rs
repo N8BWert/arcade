@@ -979,109 +979,191 @@ pub mod arcade {
         let winning_player_two = &mut ctx.accounts.winning_player_two;
         let losing_player_one = &mut ctx.accounts.losing_player_one;
         let losing_player_two = &mut ctx.accounts.losing_player_two;
-        let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
-        let game_queue_account_two = &mut ctx.accounts.game_queue_account_two;
-        let game_queue_account_three = &mut ctx.accounts.game_queue_account_three;
-        let game_queue_account_four = &mut ctx.accounts.game_queue_account_four;
+        let queues = [
+            &mut ctx.accounts.game_queue_account_one,
+            &mut ctx.accounts.game_queue_account_two,
+            &mut ctx.accounts.game_queue_account_three,
+            &mut ctx.accounts.game_queue_account_four
+        ];
         let game_account = & ctx.accounts.game_account;
+        let mut player_mappings = [0, 0, 0, 0];
+        let mut winning_queue_nums = [0, 0];
 
-        let mut queue_mapping_vec = vec![0, 0, 0, 0];
-
-        if game_queue_account_one.current_player == winning_player_one.key() {
-            queue_mapping_vec[0] = 1;
-        } else if game_queue_account_one.current_player == winning_player_two.key() {
-            queue_mapping_vec[0] = 2;
-        } else if game_queue_account_one.current_player == losing_player_one.key() {
-            queue_mapping_vec[0] = 3;
-        } else if game_queue_account_one.current_player == losing_player_two.key() {
-            queue_mapping_vec[0] = 4;
-        } else {
-            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        for i in 0..4 {
+            if queues[i].current_player == winning_player_one.key() {
+                player_mappings[i] = 1;
+                winning_queue_nums[0] = i;
+            } else if queues[i].current_player == winning_player_two.key() {
+                player_mappings[i] = 2;
+                winning_queue_nums[1] = i;
+            } else if queues[i].current_player == losing_player_one.key() {
+                player_mappings[i] = 3;
+            } else if queues[i].current_player == losing_player_two.key() {
+                player_mappings[i] = 4;
+            } else if queues[i].current_player == game_account.key() {
+                player_mappings[i] = 5;
+            } else {
+                return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+            }
         }
 
-        if game_queue_account_two.current_player == winning_player_one.key() {
-            queue_mapping_vec[1] = 1;
-        } else if game_queue_account_two.current_player == winning_player_two.key() {
-            queue_mapping_vec[1] = 2;
-        } else if game_queue_account_two.current_player == losing_player_one.key() {
-            queue_mapping_vec[1] = 3;
-        } else if game_queue_account_two.current_player == losing_player_two.key() {
-            queue_mapping_vec[1] = 4;
-        } else {
-            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
+        for i in [0, 2] {
+            if player_mappings[i] == 3 {
+                (
+                    queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue,
+                    queues[i+1].current_player, queues[i+1].last_player, queues[i+1].num_players_in_queue
+                ) = match (losing_player_one.next_player, losing_player_two.next_player) {
+                    (Some(player_one), Some(player_two)) => (
+                        player_one, queues[i].last_player, queues[i].num_players_in_queue - 1,
+                        player_two, queues[i+1].last_player, queues[i+1].num_players_in_queue - 1
+                    ),
+                    (Some(player_one), None) => (
+                        player_one, queues[i].last_player, queues[i].num_players_in_queue - 1,
+                        game_account.key(), game_account.key(), 0
+                    ),
+                    (None, Some(player_two)) => (
+                        game_account.key(), game_account.key(), 0,
+                        player_two, queues[i+1].last_player, queues[i+1].num_players_in_queue - 1,
+                    ),
+                    (None, None) => {
+                        match (winning_player_one.next_player, winning_player_two.next_player) {
+                            (Some(player_one), Some(player_two)) => {
+                                if player_one != player_two {
+                                    let old_last_player_one = queues[winning_queue_nums[0]].last_player;
+                                    let old_last_player_two = queues[winning_queue_nums[1]].last_player;
+                                    let old_num_players_one = queues[winning_queue_nums[0]].num_players_in_queue - 1;
+                                    let old_num_players_two = queues[winning_queue_nums[1]].num_players_in_queue - 1;
+
+                                    winning_player_one.next_player = None;
+                                    winning_player_two.next_player = None;
+                                    queues[winning_queue_nums[0]].num_players_in_queue = 1;
+                                    queues[winning_queue_nums[1]].num_players_in_queue = 1;
+                                    queues[winning_queue_nums[0]].last_player = winning_player_one.key();
+                                    queues[winning_queue_nums[1]].last_player = winning_player_two.key();
+
+                                    (
+                                        player_one, old_last_player_one, old_num_players_one,
+                                        player_two, old_last_player_two, old_num_players_two
+                                    )
+                                } else {
+                                    (
+                                        game_account.key(), game_account.key(), 0,
+                                        game_account.key(), game_account.key(), 0
+                                    )
+                                }
+                            },
+                            (Some(player_one), None) => {
+                                let old_last_player_one = queues[winning_queue_nums[0]].last_player;
+                                let old_num_players_one = queues[winning_queue_nums[0]].num_players_in_queue - 1;
+
+                                winning_player_one.next_player = None;
+                                queues[winning_queue_nums[0]].num_players_in_queue = 1;
+                                queues[winning_queue_nums[0]].last_player = winning_player_one.key();
+
+                                (
+                                    player_one, old_last_player_one, old_num_players_one,
+                                    game_account.key(), game_account.key(), 0
+                                )
+                            },
+                            (None, Some(player_two)) => {
+                                let old_last_player_two = queues[winning_queue_nums[1]].last_player;
+                                let old_num_players_two = queues[winning_queue_nums[1]].num_players_in_queue - 1;
+
+                                winning_player_two.next_player = None;
+                                queues[winning_queue_nums[1]].num_players_in_queue = 1;
+                                queues[winning_queue_nums[1]].last_player = winning_player_two.key();
+
+                                (
+                                    game_account.key(), game_account.key(), 0,
+                                    player_two, old_last_player_two, old_num_players_two
+                                )
+                            },
+                            (None, None) => (
+                                game_account.key(), game_account.key(), 0,
+                                game_account.key(), game_account.key(), 0
+                            ),
+                        }
+                    },
+                }
+            } else if player_mappings[i] == 4 {
+                (
+                    queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue,
+                    queues[i+1].current_player, queues[i+1].last_player, queues[i+1].num_players_in_queue
+                ) = match (losing_player_two.next_player, losing_player_one.next_player) {
+                    (Some(player_one), Some(player_two)) => (
+                        player_one, queues[i].last_player, queues[i].num_players_in_queue - 1,
+                        player_two, queues[i+1].last_player, queues[i+1].num_players_in_queue - 1
+                    ),
+                    (Some(player_one), None) => (
+                        player_one, queues[i].last_player, queues[i].num_players_in_queue - 1,
+                        game_account.key(), game_account.key(), 0
+                    ),
+                    (None, Some(player_two)) => (
+                        game_account.key(), game_account.key(), 0,
+                        player_two, queues[i+1].last_player, queues[i+1].num_players_in_queue - 1,
+                    ),
+                    (None, None) => {
+                        match (winning_player_one.next_player, winning_player_two.next_player) {
+                            (Some(player_one), Some(player_two)) => {
+                                if player_one != player_two {
+                                    let old_last_player_one = queues[winning_queue_nums[0]].last_player;
+                                    let old_last_player_two = queues[winning_queue_nums[1]].last_player;
+                                    let old_num_players_one = queues[winning_queue_nums[0]].num_players_in_queue - 1;
+                                    let old_num_players_two = queues[winning_queue_nums[1]].num_players_in_queue - 1;
+
+                                    winning_player_one.next_player = None;
+                                    winning_player_two.next_player = None;
+                                    queues[winning_queue_nums[0]].num_players_in_queue = 1;
+                                    queues[winning_queue_nums[1]].num_players_in_queue = 1;
+                                    queues[winning_queue_nums[0]].last_player = winning_player_one.key();
+                                    queues[winning_queue_nums[1]].last_player = winning_player_two.key();
+
+                                    (
+                                        player_one, old_last_player_one, old_num_players_one,
+                                        player_two, old_last_player_two, old_num_players_two
+                                    )
+                                } else {
+                                    (
+                                        game_account.key(), game_account.key(), 0,
+                                        game_account.key(), game_account.key(), 0
+                                    )
+                                }
+                            },
+                            (Some(player_one), None) => {
+                                let old_last_player_one = queues[winning_queue_nums[0]].last_player;
+                                let old_num_players_one = queues[winning_queue_nums[0]].num_players_in_queue - 1;
+
+                                winning_player_one.next_player = None;
+                                queues[winning_queue_nums[0]].num_players_in_queue = 1;
+                                queues[winning_queue_nums[0]].last_player = winning_player_one.key();
+
+                                (
+                                    player_one, old_last_player_one, old_num_players_one,
+                                    game_account.key(), game_account.key(), 0
+                                )
+                            },
+                            (None, Some(player_two)) => {
+                                let old_last_player_two = queues[winning_queue_nums[1]].last_player;
+                                let old_num_players_two = queues[winning_queue_nums[1]].num_players_in_queue - 1;
+
+                                winning_player_two.next_player = None;
+                                queues[winning_queue_nums[1]].num_players_in_queue = 1;
+                                queues[winning_queue_nums[1]].last_player = winning_player_two.key();
+
+                                (
+                                    game_account.key(), game_account.key(), 0,
+                                    player_two, old_last_player_two, old_num_players_two
+                                )
+                            },
+                            (None, None) => (
+                                game_account.key(), game_account.key(), 0,
+                                game_account.key(), game_account.key(), 0
+                            ),
+                        }
+                    },
+                }
+            }
         }
-
-        if game_queue_account_three.current_player == winning_player_one.key() {
-            queue_mapping_vec[2] = 1;
-        } else if game_queue_account_three.current_player == winning_player_two.key() {
-            queue_mapping_vec[2] = 2;
-        } else if game_queue_account_three.current_player == losing_player_one.key() {
-            queue_mapping_vec[2] = 3;
-        } else if game_queue_account_three.current_player == losing_player_two.key() {
-            queue_mapping_vec[2] = 4;
-        } else {
-            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
-        }
-
-        if game_queue_account_four.current_player == winning_player_one.key() {
-            queue_mapping_vec[3] = 1;
-        } else if game_queue_account_four.current_player == winning_player_two.key() {
-            queue_mapping_vec[3] = 2;
-        } else if game_queue_account_four.current_player == losing_player_one.key() {
-            queue_mapping_vec[3] = 3;
-        } else if game_queue_account_four.current_player == losing_player_two.key() {
-            queue_mapping_vec[3] = 4;
-        } else {
-            return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
-        }
-
-        match (queue_mapping_vec[0], queue_mapping_vec[1], queue_mapping_vec[2], queue_mapping_vec[3]) {
-            (1, 2, 3, 4) | (2, 1, 3, 4) => {
-                (game_queue_account_three.current_player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue) = match losing_player_one.next_player {
-                    Some(player) => (player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue - 1),
-                    None => (game_account.key(), game_account.key(), 0),
-                };
-
-                (game_queue_account_four.current_player, game_queue_account_four.last_player, game_queue_account_four.num_players_in_queue) = match losing_player_two.next_player {
-                    Some(player) => (player, game_queue_account_four.last_player, game_queue_account_four.num_players_in_queue - 1),
-                    None => (game_account.key(), game_account.key(), 0),
-                };
-            },
-            (1, 2, 4, 3) | (2, 1, 4, 3) => {
-                (game_queue_account_three.current_player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue) = match losing_player_two.next_player {
-                    Some(player) => (player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue - 1),
-                    None => (game_account.key(), game_account.key(), 0),
-                };
-
-                (game_queue_account_four.current_player, game_queue_account_four.last_player, game_queue_account_four.num_players_in_queue) = match losing_player_one.next_player {
-                    Some(player) => (player, game_queue_account_four.last_player, game_queue_account_four.num_players_in_queue - 1),
-                    None => (game_account.key(), game_account.key(), 0),
-                };
-            },
-            (3, 4, 1, 2) | (3, 4, 2, 1) => {
-                (game_queue_account_one.current_player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue) = match losing_player_one.next_player {
-                    Some(player) => (player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue - 1),
-                    None => (game_account.key(), game_account.key(), 0),
-                };
-
-                (game_queue_account_two.current_player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue) = match losing_player_two.next_player {
-                    Some(player) => (player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue - 1),
-                    None => (game_account.key(), game_account.key(), 0),
-                };
-            },
-            (4, 3, 1, 2) | (4, 3, 2, 1) => {
-                (game_queue_account_one.current_player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue) = match losing_player_two.next_player {
-                    Some(player) => (player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue - 1),
-                    None => (game_account.key(), game_account.key(), 0),
-                };
-
-                (game_queue_account_two.current_player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue) = match losing_player_one.next_player {
-                    Some(player) => (player, game_queue_account_one.last_player, game_queue_account_one.num_players_in_queue - 1),
-                    None => (game_account.key(), game_account.key(), 0),
-                };
-            },
-            _ => return Err(Errors::UnknownTeamQueueOrganization.into()),
-        };
 
         Ok(())
     }
@@ -1109,8 +1191,8 @@ pub mod arcade {
     pub fn finish_team_king_of_hill_queue(ctx: Context<FinishTeamKingOfHillQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
-        for _ in 0..4 {
-            game_account.game_queues.pop();
+        for i in 0..4 {
+            game_account.game_queues[i] = game_account.key();
         }
 
         Ok(())
@@ -2119,7 +2201,7 @@ pub struct JoinKingOfHillGameQueue<'info> {
     pub last_player: Account<'info, Player>,
     #[account(mut, constraint = (game_queue_account.last_player == last_player.key()) || (game_queue_account.last_player == game_account.key()))]
     pub game_queue_account: Account<'info, GameQueue>,
-    #[account(mut, constraint = game_account.game_type == 1)]
+    #[account(mut, constraint = (game_account.game_type == 1) || (game_account.game_type == 2))]
     pub game_account: Account<'info, Game>,
     #[account(mut)]
     pub payer: Signer<'info>,

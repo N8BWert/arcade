@@ -1,8 +1,6 @@
 import * as anchor from "@project-serum/anchor";
-import { Program, ProgramErrorStack } from "@project-serum/anchor";
-import { SplAssociatedTokenInstructionCoder } from "@project-serum/anchor/dist/cjs/coder/spl-associated-token/instruction";
-import { SystemEventsCoder } from "@project-serum/anchor/dist/cjs/coder/system/events";
-import { assert, AssertionError } from "chai";
+import { Program } from "@project-serum/anchor";
+import { assert } from "chai";
 import { Arcade } from "../target/types/arcade";
 
 const { makeArcade } = require("./functions/makeArcade.js");
@@ -13,7 +11,7 @@ const { updateLeaderboard } = require("./functions/updateLeaderboard.js");
 const { initOnePlayerQueue, initTwoPlayerQueue, initThreePlayerQueue, initFourPlayerQueue } = require("./functions/initQueue.js");
 const { joinOnePlayerQueue, joinTwoPlayerQueue, joinThreePlayerQueue, joinFourPlayerQueue, joinKingOfHillQueue } = require("./functions/joinQueue.js");
 const { advanceOnePlayerQueue, advanceTwoPlayerQueue, advanceTwoPlayerKingOfHillQueue, advanceThreePlayerQueue, advanceThreePlayerKingOfHillQueue,
-        advanceFourPlayerQueue, advanceFourPlayerKingOfHillQueue, AdvanceTeamKingOfHillQueue } = require("./functions/advanceQueue.js");
+        advanceFourPlayerQueue, advanceFourPlayerKingOfHillQueue, advanceTeamKingOfHillQueue } = require("./functions/advanceQueue.js");
 const { finishOnePlayerGameQueue, finishTwoPlayerGameQueue, finishTwoPlayerKingOfHillQueue, finishThreePlayerGameQueue,
         finishThreePlayerKingOfHillQueue, finishFourPlayerGameQueue, finishFourPlayerKingOfHillQueue, finishTeamKingOfHillQueue } = require("./functions/finishQueue.js");
 
@@ -186,194 +184,6 @@ describe("arcade", () => {
     assert.equal(updatedGame.leaderboard.thirdPlace.name, playerName);
     assert.equal(updatedGame.leaderboard.thirdPlace.walletKey.toString(), walletKey.publicKey.toString());
     assert.equal(updatedGame.leaderboard.thirdPlace.score.toNumber(), score.toNumber());
-  });
-
-  it("Initializes a game queue for a team king of the hill four player game", async () => {
-    // Create an arcade
-    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
-
-    // Create global parameters for a normal 4 player game
-    const numPlayers = 4;
-    const gameType = 2;
-
-    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount, numPlayers, gameType);
-
-    const { player, playerAccount, gameQueueOne, gameQueueAccountOne, gameQueueTwo, gameQueueAccountTwo, gameQueueThree, gameQueueAccountThree, gameQueueFour, gameQueueAccountFour, updatedGame } = await initFourPlayerQueue(program, provider, gameAccount);
-
-    assert.equal(player.nextPlayer, null);
-    assert.equal(player.walletKey.toString(), provider.wallet.publicKey.toString());
-    assert.equal(gameQueueOne.game.toString(), gameAccount.publicKey.toString());
-    assert.equal(gameQueueOne.currentPlayer.toString(), playerAccount.publicKey.toString());
-    assert.equal(gameQueueOne.lastPlayer.toString(), playerAccount.publicKey.toString());
-    assert.equal(gameQueueOne.numPlayersInQueue, 1);
-    assert.equal(gameQueueTwo.game.toString(), gameAccount.publicKey.toString());
-    assert.equal(gameQueueTwo.currentPlayer.toString(), gameAccount.publicKey.toString());
-    assert.equal(gameQueueTwo.lastPlayer.toString(), gameAccount.publicKey.toString());
-    assert.equal(gameQueueTwo.numPlayersInQueue, 0);
-    assert.equal(gameQueueThree.game.toString(), gameAccount.publicKey.toString());
-    assert.equal(gameQueueThree.currentPlayer.toString(), gameAccount.publicKey.toString());
-    assert.equal(gameQueueThree.lastPlayer.toString(), gameAccount.publicKey.toString());
-    assert.equal(gameQueueThree.numPlayersInQueue, 0);
-    assert.equal(gameQueueFour.game.toString(), gameAccount.publicKey.toString());
-    assert.equal(gameQueueFour.currentPlayer.toString(), gameAccount.publicKey.toString());
-    assert.equal(gameQueueFour.lastPlayer.toString(), gameAccount.publicKey.toString());
-    assert.equal(gameQueueFour.numPlayersInQueue, 0);
-    assert.equal(updatedGame.gameQueues[0].toString(), gameQueueAccountOne.publicKey.toString());
-    assert.equal(updatedGame.gameQueues[1].toString(), gameQueueAccountTwo.publicKey.toString());
-    assert.equal(updatedGame.gameQueues[2].toString(), gameQueueAccountThree.publicKey.toString());
-    assert.equal(updatedGame.gameQueues[3].toString(), gameQueueAccountFour.publicKey.toString());
-  });
-
-  it("allows people to join a one player game queue", async () => {
-    // Create an arcade
-    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
-
-    // Create global parameter for a 1 player normal game
-    const numPlayers = 1;
-    const gameType = 0;
-
-    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount, numPlayers, gameType);
-
-    const { playerAccount: playerAccountOne, gameQueueAccount } = await initOnePlayerQueue(program, provider, gameAccount);
-
-    const { player: playerTwo, playerAccount: playerAccountTwo } = await joinOnePlayerQueue(program, provider, gameAccount, gameQueueAccount, playerAccountOne);
-
-    const playerOne = await program.account.player.fetch(playerAccountOne.publicKey);
-    
-    // Get game queue
-    const gameQueue = await program.account.gameQueue.fetch(gameQueueAccount.publicKey);
-
-    assert.equal(playerOne.nextPlayer.toString(), playerAccountTwo.publicKey.toString());
-    assert.equal(gameQueue.lastPlayer.toString(), playerAccountTwo.publicKey.toString());
-    assert.equal(playerTwo.nextPlayer, null);
-    assert.equal(playerTwo.walletKey.toString(), provider.wallet.publicKey);
-    assert.equal(gameQueue.numPlayersInQueue.toNumber(), 2);
-  });
-
-  // 1 2 3 4
-  it("allows for the filling of the first level of the team game queue for a king of the hill four player game", async () => {
-    // Create an arcade
-    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
-
-    // Create global parameters for a king of the hill 4 player game
-    const numPlayers = 4;
-    const gameType = 2;
-
-    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount, numPlayers, gameType);
-
-    const { playerAccount: playerAccountOne, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour } = await initFourPlayerQueue(program, provider, gameAccount);
-
-    // Add two people to the game queue
-    const { playerAccount: playerAccountTwo } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountOne, playerAccountOne, playerAccountOne, playerAccountOne);
-    const { playerAccount: playerAccountThree } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountOne, playerAccountTwo, playerAccountOne, playerAccountOne);
-    const { player: playerFour, playerAccount: playerAccountFour } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountOne, playerAccountTwo, playerAccountThree, playerAccountOne);
-
-    // Get updated players
-    const playerOne = await program.account.player.fetch(playerAccountOne.publicKey);
-    const playerTwo = await program.account.player.fetch(playerAccountTwo.publicKey);
-    const playerThree = await program.account.player.fetch(playerAccountThree.publicKey);
-
-    // Get updated queues
-    const gameQueueOne = await program.account.gameQueue.fetch(gameQueueAccountOne.publicKey);
-    const gameQueueTwo = await program.account.gameQueue.fetch(gameQueueAccountTwo.publicKey);
-    const gameQueueThree = await program.account.gameQueue.fetch(gameQueueAccountThree.publicKey);
-    const gameQueueFour = await program.account.gameQueue.fetch(gameQueueAccountFour.publicKey);
-
-    assert.equal(playerOne.nextPlayer, null);
-    assert.equal(playerTwo.nextPlayer, null);
-    assert.equal(playerThree.nextPlayer, null);
-    assert.equal(playerFour.nextPlayer, null);
-    assert.equal(playerOne.walletKey.toString(), provider.wallet.publicKey.toString());
-    assert.equal(playerTwo.walletKey.toString(), provider.wallet.publicKey.toString());
-    assert.equal(playerThree.walletKey.toString(), provider.wallet.publicKey.toString());
-    assert.equal(playerFour.walletKey.toString(), provider.wallet.publicKey.toString());
-    assert.equal(gameQueueOne.currentPlayer.toString(), playerAccountOne.publicKey.toString());
-    assert.equal(gameQueueTwo.currentPlayer.toString(), playerAccountTwo.publicKey.toString());
-    assert.equal(gameQueueThree.currentPlayer.toString(), playerAccountThree.publicKey.toString());
-    assert.equal(gameQueueFour.currentPlayer.toString(), playerAccountFour.publicKey.toString());
-    assert.equal(gameQueueOne.lastPlayer.toString(), playerAccountOne.publicKey.toString());
-    assert.equal(gameQueueTwo.lastPlayer.toString(), playerAccountTwo.publicKey.toString());
-    assert.equal(gameQueueThree.lastPlayer.toString(), playerAccountThree.publicKey.toString());
-    assert.equal(gameQueueFour.lastPlayer.toString(), playerAccountFour.publicKey.toString());
-    assert.equal(gameQueueOne.numPlayersInQueue.toNumber(), 1);
-    assert.equal(gameQueueTwo.numPlayersInQueue.toNumber(), 1);
-    assert.equal(gameQueueThree.numPlayersInQueue.toNumber(), 1);
-    assert.equal(gameQueueFour.numPlayersInQueue.toNumber(), 1);
-  });
-
-  // 9 10 11 12
-  // 5  6  7  8
-  // 1  2  3  4
-  it("allows for many people to join a team king of the hill four person player game queue", async () => {
-    // Create an arcade
-    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
-
-    // Create global parameters for a king of the hill 4 player game
-    const numPlayers = 4;
-    const gameType = 2;
-
-    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount, numPlayers, gameType);
-
-    const { playerAccount: playerAccountOne, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour } = await initFourPlayerQueue(program, provider, gameAccount);
-
-    // Add two people to the game queue
-    const { playerAccount: playerAccountTwo } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountOne, playerAccountOne, playerAccountOne, playerAccountOne);
-    const { playerAccount: playerAccountThree } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountOne, playerAccountTwo, playerAccountOne, playerAccountOne);
-    const { playerAccount: playerAccountFour } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountOne, playerAccountTwo, playerAccountThree, playerAccountOne);
-    const { playerAccount: playerAccountFive } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountOne, playerAccountTwo, playerAccountThree, playerAccountFour);
-    const { playerAccount: playerAccountSix } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountFive, playerAccountTwo, playerAccountThree, playerAccountFour);
-    const { playerAccount: playerAccountSeven } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountFive, playerAccountSix, playerAccountThree, playerAccountFour);
-    const { playerAccount: playerAccountEight } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountFive, playerAccountSix, playerAccountSeven, playerAccountFour);
-    const { playerAccount: playerAccountNine } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountFive, playerAccountSix, playerAccountSeven, playerAccountEight);
-    const { playerAccount: playerAccountTen } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountNine, playerAccountSix, playerAccountSeven, playerAccountEight);
-    const { playerAccount: playerAccountEleven } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountNine, playerAccountTen, playerAccountSeven, playerAccountEight);
-    const { playerAccount: playerAccountTwelve } = await joinFourPlayerQueue(program, provider, gameAccount, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, playerAccountNine, playerAccountTen, playerAccountEleven, playerAccountEight);
-
-    // Get players
-    const playerOne = await program.account.player.fetch(playerAccountOne.publicKey);
-    const playerTwo = await program.account.player.fetch(playerAccountTwo.publicKey);
-    const playerThree = await program.account.player.fetch(playerAccountThree.publicKey);
-    const playerFour = await program.account.player.fetch(playerAccountFour.publicKey);
-    const playerFive = await program.account.player.fetch(playerAccountFive.publicKey);
-    const playerSix = await program.account.player.fetch(playerAccountSix.publicKey);
-    const playerSeven = await program.account.player.fetch(playerAccountSeven.publicKey);
-    const playerEight = await program.account.player.fetch(playerAccountEight.publicKey);
-    const playerNine = await program.account.player.fetch(playerAccountNine.publicKey);
-    const playerTen = await program.account.player.fetch(playerAccountTen.publicKey);
-    const playerEleven = await program.account.player.fetch(playerAccountEleven.publicKey);
-    const playerTwelve = await program.account.player.fetch(playerAccountTwelve.publicKey);
-
-    // Get game queues
-    const queueOne = await program.account.gameQueue.fetch(gameQueueAccountOne.publicKey);
-    const queueTwo = await program.account.gameQueue.fetch(gameQueueAccountTwo.publicKey);
-    const queueThree = await program.account.gameQueue.fetch(gameQueueAccountThree.publicKey);
-    const queueFour = await program.account.gameQueue.fetch(gameQueueAccountFour.publicKey);
-
-    assert.equal(playerOne.nextPlayer.toString(), playerAccountFive.publicKey.toString());
-    assert.equal(playerTwo.nextPlayer.toString(), playerAccountSix.publicKey.toString());
-    assert.equal(playerThree.nextPlayer.toString(), playerAccountSeven.publicKey.toString());
-    assert.equal(playerFour.nextPlayer.toString(), playerAccountEight.publicKey.toString());
-    assert.equal(playerFive.nextPlayer.toString(), playerAccountNine.publicKey.toString());
-    assert.equal(playerSix.nextPlayer.toString(), playerAccountTen.publicKey.toString());
-    assert.equal(playerSeven.nextPlayer.toString(), playerAccountEleven.publicKey.toString());
-    assert.equal(playerEight.nextPlayer.toString(), playerAccountTwelve.publicKey.toString());
-    assert.equal(playerNine.nextPlayer, null);
-    assert.equal(playerTen.nextPlayer, null);
-    assert.equal(playerEleven.nextPlayer, null);
-    assert.equal(playerTwelve.nextPlayer, null);
-
-    assert.equal(queueOne.currentPlayer.toString(), playerAccountOne.publicKey.toString());
-    assert.equal(queueTwo.currentPlayer.toString(), playerAccountTwo.publicKey.toString());
-    assert.equal(queueThree.currentPlayer.toString(), playerAccountThree.publicKey.toString());
-    assert.equal(queueFour.currentPlayer.toString(), playerAccountFour.publicKey.toString());
-    assert.equal(queueOne.lastPlayer.toString(), playerAccountNine.publicKey.toString());
-    assert.equal(queueTwo.lastPlayer.toString(), playerAccountTen.publicKey.toString());
-    assert.equal(queueThree.lastPlayer.toString(), playerAccountEleven.publicKey.toString());
-    assert.equal(queueFour.lastPlayer.toString(), playerAccountTwelve.publicKey.toString());
-    assert.equal(queueOne.numPlayersInQueue.toNumber(), 3);
-    assert.equal(queueTwo.numPlayersInQueue.toNumber(), 3);
-    assert.equal(queueThree.numPlayersInQueue.toNumber(), 3);
-    assert.equal(queueFour.numPlayersInQueue.toNumber(), 3);
   });
 
   // 2 ->   ->   ->
@@ -1771,465 +1581,1165 @@ describe("arcade", () => {
   //           ->         ->            ->        
   // 27 28 _ _ -> _ _ _ _ -> 29 30 31 _ -> _ _ _ _
   it("performs operations on a king of the hill 4 player queue", async () => {
-        // Create an arcade
-        const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
+    // Create an arcade
+    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
 
-        // Create global parameters for a king of the hill 3 player game
-        const numPlayers = 4;
-        const gameType = 1;
-    
-        const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount, numPlayers, gameType);
+    // Create global parameters for a king of the hill 3 player game
+    const numPlayers = 4;
+    const gameType = 1;
 
-        const { playerAccount: playerAccountOne, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour } = await initFourPlayerQueue(program, provider, gameAccount);
-        const { playerAccount: playerAccountTwo } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwo, playerAccountOne);
-        const { playerAccount: playerAccountThree } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountThree, playerAccountOne);
-        const { playerAccount: playerAccountFour } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFour, playerAccountOne);
-        const { playerAccount: playerAccountFive } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountOne, playerAccountOne);
-        const { playerAccount: playerAccountSix } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwo, playerAccountTwo);
-        const { playerAccount: playerAccountSeven } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountThree, playerAccountThree);
-        const { playerAccount: playerAccountEight } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFour, playerAccountFour);
-        const { playerAccount: playerAccountNine } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountOne, playerAccountFive);
-        const { playerAccount: playerAccountTen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwo, playerAccountSix);
-        const { playerAccount: playerAccountEleven } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountThree, playerAccountSeven);
-        const { playerAccount: playerAccountTwelve } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFour, playerAccountEight);
+    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount, numPlayers, gameType);
 
-        const g0 = await program.account.game.fetch(gameAccount.publicKey);
-        const p10 = await program.account.player.fetch(playerAccountOne.publicKey);
-        const p20 = await program.account.player.fetch(playerAccountTwo.publicKey);
-        const p30 = await program.account.player.fetch(playerAccountThree.publicKey);
-        const p40 = await program.account.player.fetch(playerAccountFour.publicKey);
-        const p50 = await program.account.player.fetch(playerAccountFive.publicKey);
-        const p60 = await program.account.player.fetch(playerAccountSix.publicKey);
-        const p70 = await program.account.player.fetch(playerAccountSeven.publicKey);
-        const p80 = await program.account.player.fetch(playerAccountEight.publicKey);
-        const p90 = await program.account.player.fetch(playerAccountNine.publicKey);
-        const p100 = await program.account.player.fetch(playerAccountTen.publicKey);
-        const p110 = await program.account.player.fetch(playerAccountEleven.publicKey);
-        const p120 = await program.account.player.fetch(playerAccountTwelve.publicKey);
-        const q10 = await program.account.gameQueue.fetch(gameQueueAccountOne.publicKey);
-        const q20 = await program.account.gameQueue.fetch(gameQueueAccountTwo.publicKey);
-        const q30 = await program.account.gameQueue.fetch(gameQueueAccountThree.publicKey);
-        const q40 = await program.account.gameQueue.fetch(gameQueueAccountFour.publicKey);
+    const { playerAccount: playerAccountOne, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour } = await initFourPlayerQueue(program, provider, gameAccount);
+    const { playerAccount: playerAccountTwo } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwo, playerAccountOne);
+    const { playerAccount: playerAccountThree } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountThree, playerAccountOne);
+    const { playerAccount: playerAccountFour } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFour, playerAccountOne);
+    const { playerAccount: playerAccountFive } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountOne, playerAccountOne);
+    const { playerAccount: playerAccountSix } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwo, playerAccountTwo);
+    const { playerAccount: playerAccountSeven } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountThree, playerAccountThree);
+    const { playerAccount: playerAccountEight } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFour, playerAccountFour);
+    const { playerAccount: playerAccountNine } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountOne, playerAccountFive);
+    const { playerAccount: playerAccountTen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwo, playerAccountSix);
+    const { playerAccount: playerAccountEleven } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountThree, playerAccountSeven);
+    const { playerAccount: playerAccountTwelve } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFour, playerAccountEight);
 
-        // Assert the queues were created correctly
-        assert.equal(g0.gameQueues[0].toString(), gameQueueAccountOne.publicKey.toString());
-        assert.equal(g0.gameQueues[1].toString(), gameQueueAccountTwo.publicKey.toString());
-        assert.equal(g0.gameQueues[2].toString(), gameQueueAccountThree.publicKey.toString());
-        assert.equal(g0.gameQueues[3].toString(), gameQueueAccountFour.publicKey.toString());
-        assert.equal(p10.nextPlayer.toString(), playerAccountFive.publicKey.toString());
-        assert.equal(p20.nextPlayer.toString(), playerAccountSix.publicKey.toString());
-        assert.equal(p30.nextPlayer.toString(), playerAccountSeven.publicKey.toString());
-        assert.equal(p40.nextPlayer.toString(), playerAccountEight.publicKey.toString());
-        assert.equal(p50.nextPlayer.toString(), playerAccountNine.publicKey.toString());
-        assert.equal(p60.nextPlayer.toString(), playerAccountTen.publicKey.toString());
-        assert.equal(p70.nextPlayer.toString(), playerAccountEleven.publicKey.toString());
-        assert.equal(p80.nextPlayer.toString(), playerAccountTwelve.publicKey.toString());
-        assert.equal(p90.nextPlayer, null);
-        assert.equal(p100.nextPlayer, null);
-        assert.equal(p110.nextPlayer, null);
-        assert.equal(p120.nextPlayer, null);
-        assert.equal(q10.currentPlayer.toString(), playerAccountOne.publicKey.toString());
-        assert.equal(q20.currentPlayer.toString(), playerAccountTwo.publicKey.toString());
-        assert.equal(q30.currentPlayer.toString(), playerAccountThree.publicKey.toString());
-        assert.equal(q40.currentPlayer.toString(), playerAccountFour.publicKey.toString());
-        assert.equal(q10.lastPlayer.toString(), playerAccountNine.publicKey.toString());
-        assert.equal(q20.lastPlayer.toString(), playerAccountTen.publicKey.toString());
-        assert.equal(q30.lastPlayer.toString(), playerAccountEleven.publicKey.toString());
-        assert.equal(q40.lastPlayer.toString(), playerAccountTwelve.publicKey.toString());
-        assert.equal(q10.numPlayersInQueue.toNumber(), 3);
-        assert.equal(q20.numPlayersInQueue.toNumber(), 3);
-        assert.equal(q30.numPlayersInQueue.toNumber(), 3);
-        assert.equal(q40.numPlayersInQueue.toNumber(), 3);
+    const g0 = await program.account.game.fetch(gameAccount.publicKey);
+    const p10 = await program.account.player.fetch(playerAccountOne.publicKey);
+    const p20 = await program.account.player.fetch(playerAccountTwo.publicKey);
+    const p30 = await program.account.player.fetch(playerAccountThree.publicKey);
+    const p40 = await program.account.player.fetch(playerAccountFour.publicKey);
+    const p50 = await program.account.player.fetch(playerAccountFive.publicKey);
+    const p60 = await program.account.player.fetch(playerAccountSix.publicKey);
+    const p70 = await program.account.player.fetch(playerAccountSeven.publicKey);
+    const p80 = await program.account.player.fetch(playerAccountEight.publicKey);
+    const p90 = await program.account.player.fetch(playerAccountNine.publicKey);
+    const p100 = await program.account.player.fetch(playerAccountTen.publicKey);
+    const p110 = await program.account.player.fetch(playerAccountEleven.publicKey);
+    const p120 = await program.account.player.fetch(playerAccountTwelve.publicKey);
+    const q10 = await program.account.gameQueue.fetch(gameQueueAccountOne.publicKey);
+    const q20 = await program.account.gameQueue.fetch(gameQueueAccountTwo.publicKey);
+    const q30 = await program.account.gameQueue.fetch(gameQueueAccountThree.publicKey);
+    const q40 = await program.account.gameQueue.fetch(gameQueueAccountFour.publicKey);
 
-        const { updatedGameQueueOne: q11, updatedGameQueueTwo: q21, updatedGameQueueThree: q31, updatedGameQueueFour: q41 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountOne, playerAccountTwo, playerAccountThree, playerAccountFour, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
+    // Assert the queues were created correctly
+    assert.equal(g0.gameQueues[0].toString(), gameQueueAccountOne.publicKey.toString());
+    assert.equal(g0.gameQueues[1].toString(), gameQueueAccountTwo.publicKey.toString());
+    assert.equal(g0.gameQueues[2].toString(), gameQueueAccountThree.publicKey.toString());
+    assert.equal(g0.gameQueues[3].toString(), gameQueueAccountFour.publicKey.toString());
+    assert.equal(p10.nextPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(p20.nextPlayer.toString(), playerAccountSix.publicKey.toString());
+    assert.equal(p30.nextPlayer.toString(), playerAccountSeven.publicKey.toString());
+    assert.equal(p40.nextPlayer.toString(), playerAccountEight.publicKey.toString());
+    assert.equal(p50.nextPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(p60.nextPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(p70.nextPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(p80.nextPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(p90.nextPlayer, null);
+    assert.equal(p100.nextPlayer, null);
+    assert.equal(p110.nextPlayer, null);
+    assert.equal(p120.nextPlayer, null);
+    assert.equal(q10.currentPlayer.toString(), playerAccountOne.publicKey.toString());
+    assert.equal(q20.currentPlayer.toString(), playerAccountTwo.publicKey.toString());
+    assert.equal(q30.currentPlayer.toString(), playerAccountThree.publicKey.toString());
+    assert.equal(q40.currentPlayer.toString(), playerAccountFour.publicKey.toString());
+    assert.equal(q10.lastPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(q20.lastPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(q30.lastPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(q40.lastPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(q10.numPlayersInQueue.toNumber(), 3);
+    assert.equal(q20.numPlayersInQueue.toNumber(), 3);
+    assert.equal(q30.numPlayersInQueue.toNumber(), 3);
+    assert.equal(q40.numPlayersInQueue.toNumber(), 3);
 
-        const p11 = await program.account.player.fetch(playerAccountOne.publicKey);
-        const p51 = await program.account.player.fetch(playerAccountFive.publicKey);
-        const p61 = await program.account.player.fetch(playerAccountSix.publicKey);
-        const p71 = await program.account.player.fetch(playerAccountSeven.publicKey);
-        const p81 = await program.account.player.fetch(playerAccountEight.publicKey);
-        const p91 = await program.account.player.fetch(playerAccountNine.publicKey);
-        const p101 = await program.account.player.fetch(playerAccountTen.publicKey);
-        const p111 = await program.account.player.fetch(playerAccountEleven.publicKey);
-        const p121 = await program.account.player.fetch(playerAccountTwelve.publicKey);
+    const { updatedGameQueueOne: q11, updatedGameQueueTwo: q21, updatedGameQueueThree: q31, updatedGameQueueFour: q41 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountOne, playerAccountTwo, playerAccountThree, playerAccountFour, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
 
-        // Assert queues were advanced correctly
-        assert.equal(p11.nextPlayer.toString(), playerAccountFive.publicKey.toString());
-        assert.equal(p61.nextPlayer.toString(), playerAccountTen.publicKey.toString());
-        assert.equal(p71.nextPlayer.toString(), playerAccountEleven.publicKey.toString());
-        assert.equal(p81.nextPlayer.toString(), playerAccountTwelve.publicKey.toString());
-        assert.equal(p51.nextPlayer.toString(), playerAccountNine.publicKey.toString());
-        assert.equal(p101.nextPlayer, null);
-        assert.equal(p111.nextPlayer, null);
-        assert.equal(p121.nextPlayer, null);
-        assert.equal(p91.nextPlayer, null);
-        assert.equal(q11.currentPlayer.toString(), playerAccountOne.publicKey.toString());
-        assert.equal(q21.currentPlayer.toString(), playerAccountSix.publicKey.toString());
-        assert.equal(q31.currentPlayer.toString(), playerAccountSeven.publicKey.toString());
-        assert.equal(q41.currentPlayer.toString(), playerAccountEight.publicKey.toString());
-        assert.equal(q11.lastPlayer.toString(), playerAccountNine.publicKey.toString());
-        assert.equal(q21.lastPlayer.toString(), playerAccountTen.publicKey.toString());
-        assert.equal(q31.lastPlayer.toString(), playerAccountEleven.publicKey.toString());
-        assert.equal(q41.lastPlayer.toString(), playerAccountTwelve.publicKey.toString());
-        assert.equal(q11.numPlayersInQueue.toNumber(), 3);
-        assert.equal(q21.numPlayersInQueue.toNumber(), 2);
-        assert.equal(q31.numPlayersInQueue.toNumber(), 2);
-        assert.equal(q41.numPlayersInQueue.toNumber(), 2);
+    const p11 = await program.account.player.fetch(playerAccountOne.publicKey);
+    const p51 = await program.account.player.fetch(playerAccountFive.publicKey);
+    const p61 = await program.account.player.fetch(playerAccountSix.publicKey);
+    const p71 = await program.account.player.fetch(playerAccountSeven.publicKey);
+    const p81 = await program.account.player.fetch(playerAccountEight.publicKey);
+    const p91 = await program.account.player.fetch(playerAccountNine.publicKey);
+    const p101 = await program.account.player.fetch(playerAccountTen.publicKey);
+    const p111 = await program.account.player.fetch(playerAccountEleven.publicKey);
+    const p121 = await program.account.player.fetch(playerAccountTwelve.publicKey);
 
-        const { updatedGameQueueOne: q12, updatedGameQueueTwo: q22, updatedGameQueueThree: q32, updatedGameQueueFour: q42 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountSix, playerAccountOne, playerAccountSeven, playerAccountEight, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
+    // Assert queues were advanced correctly
+    assert.equal(p11.nextPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(p61.nextPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(p71.nextPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(p81.nextPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(p51.nextPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(p101.nextPlayer, null);
+    assert.equal(p111.nextPlayer, null);
+    assert.equal(p121.nextPlayer, null);
+    assert.equal(p91.nextPlayer, null);
+    assert.equal(q11.currentPlayer.toString(), playerAccountOne.publicKey.toString());
+    assert.equal(q21.currentPlayer.toString(), playerAccountSix.publicKey.toString());
+    assert.equal(q31.currentPlayer.toString(), playerAccountSeven.publicKey.toString());
+    assert.equal(q41.currentPlayer.toString(), playerAccountEight.publicKey.toString());
+    assert.equal(q11.lastPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(q21.lastPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(q31.lastPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(q41.lastPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(q11.numPlayersInQueue.toNumber(), 3);
+    assert.equal(q21.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q31.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q41.numPlayersInQueue.toNumber(), 2);
 
-        const p52 = await program.account.player.fetch(playerAccountFive.publicKey);
-        const p62 = await program.account.player.fetch(playerAccountSix.publicKey);
-        const p92 = await program.account.player.fetch(playerAccountNine.publicKey);
-        const p102 = await program.account.player.fetch(playerAccountTen.publicKey);
-        const p112 = await program.account.player.fetch(playerAccountEleven.publicKey);
-        const p122 = await program.account.player.fetch(playerAccountTwelve.publicKey);
+    const { updatedGameQueueOne: q12, updatedGameQueueTwo: q22, updatedGameQueueThree: q32, updatedGameQueueFour: q42 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountSix, playerAccountOne, playerAccountSeven, playerAccountEight, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
 
-        // Assert queues were advanced correctly
-        assert.equal(p52.nextPlayer.toString(), playerAccountNine.publicKey.toString());
-        assert.equal(p62.nextPlayer.toString(), playerAccountTen.publicKey.toString());
-        assert.equal(p92.nextPlayer, null);
-        assert.equal(p102.nextPlayer, null);
-        assert.equal(p112.nextPlayer, null);
-        assert.equal(p122.nextPlayer, null);
-        assert.equal(q12.currentPlayer.toString(), playerAccountFive.publicKey.toString());
-        assert.equal(q22.currentPlayer.toString(), playerAccountSix.publicKey.toString());
-        assert.equal(q32.currentPlayer.toString(), playerAccountEleven.publicKey.toString());
-        assert.equal(q42.currentPlayer.toString(), playerAccountTwelve.publicKey.toString());
-        assert.equal(q12.lastPlayer.toString(), playerAccountNine.publicKey.toString());
-        assert.equal(q22.lastPlayer.toString(), playerAccountTen.publicKey.toString());
-        assert.equal(q32.lastPlayer.toString(), playerAccountEleven.publicKey.toString());
-        assert.equal(q42.lastPlayer.toString(), playerAccountTwelve.publicKey.toString());
-        assert.equal(q12.numPlayersInQueue.toNumber(), 2);
-        assert.equal(q22.numPlayersInQueue.toNumber(), 2);
-        assert.equal(q32.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q42.numPlayersInQueue.toNumber(), 1);
+    const p52 = await program.account.player.fetch(playerAccountFive.publicKey);
+    const p62 = await program.account.player.fetch(playerAccountSix.publicKey);
+    const p92 = await program.account.player.fetch(playerAccountNine.publicKey);
+    const p102 = await program.account.player.fetch(playerAccountTen.publicKey);
+    const p112 = await program.account.player.fetch(playerAccountEleven.publicKey);
+    const p122 = await program.account.player.fetch(playerAccountTwelve.publicKey);
 
-        const { updatedGameQueueOne: q13, updatedGameQueueTwo: q23, updatedGameQueueThree: q33, updatedGameQueueFour: q43 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountFive, playerAccountSix, playerAccountEleven, playerAccountTwelve, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
+    // Assert queues were advanced correctly
+    assert.equal(p52.nextPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(p62.nextPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(p92.nextPlayer, null);
+    assert.equal(p102.nextPlayer, null);
+    assert.equal(p112.nextPlayer, null);
+    assert.equal(p122.nextPlayer, null);
+    assert.equal(q12.currentPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(q22.currentPlayer.toString(), playerAccountSix.publicKey.toString());
+    assert.equal(q32.currentPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(q42.currentPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(q12.lastPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(q22.lastPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(q32.lastPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(q42.lastPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(q12.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q22.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q32.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q42.numPlayersInQueue.toNumber(), 1);
 
-        const p53 = await program.account.player.fetch(playerAccountFive.publicKey);
-        const p103 = await program.account.player.fetch(playerAccountTen.publicKey);
-        const p93 = await program.account.player.fetch(playerAccountNine.publicKey);
+    const { updatedGameQueueOne: q13, updatedGameQueueTwo: q23, updatedGameQueueThree: q33, updatedGameQueueFour: q43 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountFive, playerAccountSix, playerAccountEleven, playerAccountTwelve, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
 
-        // Assert queues were advanced correctly
-        assert.equal(p53.nextPlayer, null);
-        assert.equal(p103.nextPlayer, null);
-        assert.equal(p93.nextPlayer, null);
-        assert.equal(q13.currentPlayer.toString(), playerAccountFive.publicKey.toString());
-        assert.equal(q23.currentPlayer.toString(), playerAccountTen.publicKey.toString());
-        assert.equal(q33.currentPlayer.toString(), playerAccountNine.publicKey.toString());
-        assert.equal(q43.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q13.lastPlayer.toString(), playerAccountFive.publicKey.toString());
-        assert.equal(q23.lastPlayer.toString(), playerAccountTen.publicKey.toString());
-        assert.equal(q33.lastPlayer.toString(), playerAccountNine.publicKey.toString());
-        assert.equal(q43.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q13.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q23.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q33.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q43.numPlayersInQueue.toNumber(), 0);
+    const p53 = await program.account.player.fetch(playerAccountFive.publicKey);
+    const p103 = await program.account.player.fetch(playerAccountTen.publicKey);
+    const p93 = await program.account.player.fetch(playerAccountNine.publicKey);
 
-        const { updatedGameQueueOne: q14, updatedGameQueueTwo: q24, updatedGameQueueThree: q34, updatedGameQueueFour: q44 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountFive, playerAccountTen, playerAccountNine, playerAccountTen, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
+    // Assert queues were advanced correctly
+    assert.equal(p53.nextPlayer, null);
+    assert.equal(p103.nextPlayer, null);
+    assert.equal(p93.nextPlayer, null);
+    assert.equal(q13.currentPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(q23.currentPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(q33.currentPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(q43.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q13.lastPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(q23.lastPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(q33.lastPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(q43.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q13.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q23.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q33.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q43.numPlayersInQueue.toNumber(), 0);
 
-        const p54 = await program.account.player.fetch(playerAccountFive.publicKey);
+    const { updatedGameQueueOne: q14, updatedGameQueueTwo: q24, updatedGameQueueThree: q34, updatedGameQueueFour: q44 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountFive, playerAccountTen, playerAccountNine, playerAccountTen, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
 
-        // Assert queues were advanced correctly
-        assert.equal(p54.nextPlayer, null);
-        assert.equal(q14.currentPlayer.toString(), playerAccountFive.publicKey.toString());
-        assert.equal(q24.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q34.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q44.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q14.lastPlayer.toString(), playerAccountFive.publicKey.toString());
-        assert.equal(q24.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q34.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q44.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q14.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q24.numPlayersInQueue.toNumber(), 0);
-        assert.equal(q34.numPlayersInQueue.toNumber(), 0);
-        assert.equal(q44.numPlayersInQueue.toNumber(), 0);
+    const p54 = await program.account.player.fetch(playerAccountFive.publicKey);
 
-        const { updatedGame: g5 } = await finishFourPlayerKingOfHillQueue(program, provider, playerAccountFive, playerAccountFive, playerAccountFive, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
+    // Assert queues were advanced correctly
+    assert.equal(p54.nextPlayer, null);
+    assert.equal(q14.currentPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(q24.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q34.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q44.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q14.lastPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(q24.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q34.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q44.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q14.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q24.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q34.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q44.numPlayersInQueue.toNumber(), 0);
 
-        // Assert queues were torn down correctly
-        assert.equal(g5.gameQueues[0].toString(), gameAccount.publicKey.toString());
-        assert.equal(g5.gameQueues[1].toString(), gameAccount.publicKey.toString());
-        assert.equal(g5.gameQueues[2].toString(), gameAccount.publicKey.toString());
-        assert.equal(g5.gameQueues[3].toString(), gameAccount.publicKey.toString());
+    const { updatedGame: g5 } = await finishFourPlayerKingOfHillQueue(program, provider, playerAccountFive, playerAccountFive, playerAccountFive, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
 
-        const { playerAccount: playerAccountThirteen, gameQueueAccountOne: gameQueueAccountFive, gameQueueAccountTwo: gameQueueAccountSix, gameQueueAccountThree: gameQueueAccountSeven, gameQueueAccountFour: gameQueueAccountEight } = await initFourPlayerQueue(program, provider, gameAccount);
-        const { playerAccount: playerAccountFourteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountSix, playerAccountThirteen);
-        const { playerAccount: playerAccountFifteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountSeven, playerAccountThirteen);
-        const { playerAccount: playerAccountSixteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEight, playerAccountThirteen);
-        const { playerAccount: playerAccountSeventeen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFive, playerAccountThirteen);
-        const { playerAccount: playerAccountEighteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountSeven, playerAccountFifteen);
-        const { playerAccount: playerAccountNineteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEight, playerAccountSixteen);
+    // Assert queues were torn down correctly
+    assert.equal(g5.gameQueues[0].toString(), gameAccount.publicKey.toString());
+    assert.equal(g5.gameQueues[1].toString(), gameAccount.publicKey.toString());
+    assert.equal(g5.gameQueues[2].toString(), gameAccount.publicKey.toString());
+    assert.equal(g5.gameQueues[3].toString(), gameAccount.publicKey.toString());
 
-        const g6 = await program.account.game.fetch(gameAccount.publicKey);
-        const p136 = await program.account.player.fetch(playerAccountThirteen.publicKey);
-        const p146 = await program.account.player.fetch(playerAccountFourteen.publicKey);
-        const p156 = await program.account.player.fetch(playerAccountFifteen.publicKey);
-        const p166 = await program.account.player.fetch(playerAccountSixteen.publicKey);
-        const p176 = await program.account.player.fetch(playerAccountSeventeen.publicKey);
-        const p186 = await program.account.player.fetch(playerAccountEighteen.publicKey);
-        const p196 = await program.account.player.fetch(playerAccountNineteen.publicKey);
-        const q56 = await program.account.gameQueue.fetch(gameQueueAccountFive.publicKey);
-        const q66 = await program.account.gameQueue.fetch(gameQueueAccountSix.publicKey);
-        const q76 = await program.account.gameQueue.fetch(gameQueueAccountSeven.publicKey);
-        const q86 = await program.account.gameQueue.fetch(gameQueueAccountEight.publicKey);
+    const { playerAccount: playerAccountThirteen, gameQueueAccountOne: gameQueueAccountFive, gameQueueAccountTwo: gameQueueAccountSix, gameQueueAccountThree: gameQueueAccountSeven, gameQueueAccountFour: gameQueueAccountEight } = await initFourPlayerQueue(program, provider, gameAccount);
+    const { playerAccount: playerAccountFourteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountSix, playerAccountThirteen);
+    const { playerAccount: playerAccountFifteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountSeven, playerAccountThirteen);
+    const { playerAccount: playerAccountSixteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEight, playerAccountThirteen);
+    const { playerAccount: playerAccountSeventeen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFive, playerAccountThirteen);
+    const { playerAccount: playerAccountEighteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountSeven, playerAccountFifteen);
+    const { playerAccount: playerAccountNineteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEight, playerAccountSixteen);
 
-        // Assert queues were set up correctly
-        assert.equal(g6.gameQueues[0].toString(), gameQueueAccountFive.publicKey.toString());
-        assert.equal(g6.gameQueues[1].toString(), gameQueueAccountSix.publicKey.toString());
-        assert.equal(g6.gameQueues[2].toString(), gameQueueAccountSeven.publicKey.toString());
-        assert.equal(g6.gameQueues[3].toString(), gameQueueAccountEight.publicKey.toString());
-        assert.equal(p136.nextPlayer.toString(), playerAccountSeventeen.publicKey.toString());
-        assert.equal(p156.nextPlayer.toString(), playerAccountEighteen.publicKey.toString());
-        assert.equal(p166.nextPlayer.toString(), playerAccountNineteen.publicKey.toString());
-        assert.equal(p176.nextPlayer, null);
-        assert.equal(p146.nextPlayer, null);
-        assert.equal(p186.nextPlayer, null);
-        assert.equal(p196.nextPlayer, null);
-        assert.equal(q56.currentPlayer.toString(), playerAccountThirteen.publicKey.toString());
-        assert.equal(q66.currentPlayer.toString(), playerAccountFourteen.publicKey.toString());
-        assert.equal(q76.currentPlayer.toString(), playerAccountFifteen.publicKey.toString());
-        assert.equal(q86.currentPlayer.toString(), playerAccountSixteen.publicKey.toString());
-        assert.equal(q56.lastPlayer.toString(), playerAccountSeventeen.publicKey.toString());
-        assert.equal(q66.lastPlayer.toString(), playerAccountFourteen.publicKey.toString());
-        assert.equal(q76.lastPlayer.toString(), playerAccountEighteen.publicKey.toString());
-        assert.equal(q86.lastPlayer.toString(), playerAccountNineteen.publicKey.toString());
-        assert.equal(q56.numPlayersInQueue.toNumber(), 2);
-        assert.equal(q66.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q76.numPlayersInQueue.toNumber(), 2);
-        assert.equal(q86.numPlayersInQueue.toNumber(), 2);
+    const g6 = await program.account.game.fetch(gameAccount.publicKey);
+    const p136 = await program.account.player.fetch(playerAccountThirteen.publicKey);
+    const p146 = await program.account.player.fetch(playerAccountFourteen.publicKey);
+    const p156 = await program.account.player.fetch(playerAccountFifteen.publicKey);
+    const p166 = await program.account.player.fetch(playerAccountSixteen.publicKey);
+    const p176 = await program.account.player.fetch(playerAccountSeventeen.publicKey);
+    const p186 = await program.account.player.fetch(playerAccountEighteen.publicKey);
+    const p196 = await program.account.player.fetch(playerAccountNineteen.publicKey);
+    const q56 = await program.account.gameQueue.fetch(gameQueueAccountFive.publicKey);
+    const q66 = await program.account.gameQueue.fetch(gameQueueAccountSix.publicKey);
+    const q76 = await program.account.gameQueue.fetch(gameQueueAccountSeven.publicKey);
+    const q86 = await program.account.gameQueue.fetch(gameQueueAccountEight.publicKey);
 
-        const { updatedGameQueueOne: q57, updatedGameQueueTwo: q67, updatedGameQueueThree: q77, updatedGameQueueFour: q87 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountFifteen, playerAccountThirteen, playerAccountFourteen, playerAccountSixteen, gameQueueAccountFive, gameQueueAccountSix, gameQueueAccountSeven, gameQueueAccountEight, gameAccount);
+    // Assert queues were set up correctly
+    assert.equal(g6.gameQueues[0].toString(), gameQueueAccountFive.publicKey.toString());
+    assert.equal(g6.gameQueues[1].toString(), gameQueueAccountSix.publicKey.toString());
+    assert.equal(g6.gameQueues[2].toString(), gameQueueAccountSeven.publicKey.toString());
+    assert.equal(g6.gameQueues[3].toString(), gameQueueAccountEight.publicKey.toString());
+    assert.equal(p136.nextPlayer.toString(), playerAccountSeventeen.publicKey.toString());
+    assert.equal(p156.nextPlayer.toString(), playerAccountEighteen.publicKey.toString());
+    assert.equal(p166.nextPlayer.toString(), playerAccountNineteen.publicKey.toString());
+    assert.equal(p176.nextPlayer, null);
+    assert.equal(p146.nextPlayer, null);
+    assert.equal(p186.nextPlayer, null);
+    assert.equal(p196.nextPlayer, null);
+    assert.equal(q56.currentPlayer.toString(), playerAccountThirteen.publicKey.toString());
+    assert.equal(q66.currentPlayer.toString(), playerAccountFourteen.publicKey.toString());
+    assert.equal(q76.currentPlayer.toString(), playerAccountFifteen.publicKey.toString());
+    assert.equal(q86.currentPlayer.toString(), playerAccountSixteen.publicKey.toString());
+    assert.equal(q56.lastPlayer.toString(), playerAccountSeventeen.publicKey.toString());
+    assert.equal(q66.lastPlayer.toString(), playerAccountFourteen.publicKey.toString());
+    assert.equal(q76.lastPlayer.toString(), playerAccountEighteen.publicKey.toString());
+    assert.equal(q86.lastPlayer.toString(), playerAccountNineteen.publicKey.toString());
+    assert.equal(q56.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q66.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q76.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q86.numPlayersInQueue.toNumber(), 2);
 
-        const p177 = await program.account.player.fetch(playerAccountSeventeen.publicKey);
-        const p187 = await program.account.player.fetch(playerAccountEighteen.publicKey);
-        const p157 = await program.account.player.fetch(playerAccountFifteen.publicKey);
-        const p197 = await program.account.player.fetch(playerAccountNineteen.publicKey);
+    const { updatedGameQueueOne: q57, updatedGameQueueTwo: q67, updatedGameQueueThree: q77, updatedGameQueueFour: q87 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountFifteen, playerAccountThirteen, playerAccountFourteen, playerAccountSixteen, gameQueueAccountFive, gameQueueAccountSix, gameQueueAccountSeven, gameQueueAccountEight, gameAccount);
 
-        // Assert queues were advanced correctly
-        assert.equal(p177.nextPlayer, null);
-        assert.equal(p187.nextPlayer, null);
-        assert.equal(p157.nextPlayer, null);
-        assert.equal(p197.nextPlayer, null);
-        assert.equal(q57.currentPlayer.toString(), playerAccountSeventeen.publicKey.toString());
-        assert.equal(q67.currentPlayer.toString(), playerAccountEighteen.publicKey.toString());
-        assert.equal(q77.currentPlayer.toString(), playerAccountFifteen.publicKey.toString());
-        assert.equal(q87.currentPlayer.toString(), playerAccountNineteen.publicKey.toString());
-        assert.equal(q57.lastPlayer.toString(), playerAccountSeventeen.publicKey.toString());
-        assert.equal(q67.lastPlayer.toString(), playerAccountEighteen.publicKey.toString());
-        assert.equal(q77.lastPlayer.toString(), playerAccountFifteen.publicKey.toString());
-        assert.equal(q87.lastPlayer.toString(), playerAccountNineteen.publicKey.toString());
-        assert.equal(q57.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q67.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q77.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q87.numPlayersInQueue.toNumber(), 1);
+    const p177 = await program.account.player.fetch(playerAccountSeventeen.publicKey);
+    const p187 = await program.account.player.fetch(playerAccountEighteen.publicKey);
+    const p157 = await program.account.player.fetch(playerAccountFifteen.publicKey);
+    const p197 = await program.account.player.fetch(playerAccountNineteen.publicKey);
 
-        const { updatedGameQueueOne: q58, updatedGameQueueTwo: q68, updatedGameQueueThree: q78, updatedGameQueueFour: q88 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountEighteen, playerAccountSeventeen, playerAccountFifteen, playerAccountNineteen, gameQueueAccountFive, gameQueueAccountSix, gameQueueAccountSeven, gameQueueAccountEight, gameAccount);
+    // Assert queues were advanced correctly
+    assert.equal(p177.nextPlayer, null);
+    assert.equal(p187.nextPlayer, null);
+    assert.equal(p157.nextPlayer, null);
+    assert.equal(p197.nextPlayer, null);
+    assert.equal(q57.currentPlayer.toString(), playerAccountSeventeen.publicKey.toString());
+    assert.equal(q67.currentPlayer.toString(), playerAccountEighteen.publicKey.toString());
+    assert.equal(q77.currentPlayer.toString(), playerAccountFifteen.publicKey.toString());
+    assert.equal(q87.currentPlayer.toString(), playerAccountNineteen.publicKey.toString());
+    assert.equal(q57.lastPlayer.toString(), playerAccountSeventeen.publicKey.toString());
+    assert.equal(q67.lastPlayer.toString(), playerAccountEighteen.publicKey.toString());
+    assert.equal(q77.lastPlayer.toString(), playerAccountFifteen.publicKey.toString());
+    assert.equal(q87.lastPlayer.toString(), playerAccountNineteen.publicKey.toString());
+    assert.equal(q57.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q67.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q77.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q87.numPlayersInQueue.toNumber(), 1);
 
-        const p188 = await program.account.player.fetch(playerAccountEighteen.publicKey);
+    const { updatedGameQueueOne: q58, updatedGameQueueTwo: q68, updatedGameQueueThree: q78, updatedGameQueueFour: q88 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountEighteen, playerAccountSeventeen, playerAccountFifteen, playerAccountNineteen, gameQueueAccountFive, gameQueueAccountSix, gameQueueAccountSeven, gameQueueAccountEight, gameAccount);
 
-        // Assert queues were advanced correctly
-        assert.equal(p188.nextPlayer, null);
-        assert.equal(q58.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q68.currentPlayer.toString(), playerAccountEighteen.publicKey.toString());
-        assert.equal(q78.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q88.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q58.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q68.lastPlayer.toString(), playerAccountEighteen.publicKey.toString());
-        assert.equal(q78.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q88.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q58.numPlayersInQueue.toNumber(), 0);
-        assert.equal(q68.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q78.numPlayersInQueue.toNumber(), 0);
-        assert.equal(q88.numPlayersInQueue.toNumber(), 0);
+    const p188 = await program.account.player.fetch(playerAccountEighteen.publicKey);
 
-        const { updatedGame: g8 } = await finishFourPlayerKingOfHillQueue(program, provider, playerAccountEighteen, playerAccountEighteen, playerAccountEighteen, gameQueueAccountFive, gameQueueAccountSix, gameQueueAccountSeven, gameQueueAccountEight, gameAccount);
+    // Assert queues were advanced correctly
+    assert.equal(p188.nextPlayer, null);
+    assert.equal(q58.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q68.currentPlayer.toString(), playerAccountEighteen.publicKey.toString());
+    assert.equal(q78.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q88.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q58.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q68.lastPlayer.toString(), playerAccountEighteen.publicKey.toString());
+    assert.equal(q78.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q88.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q58.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q68.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q78.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q88.numPlayersInQueue.toNumber(), 0);
 
-        // Assert queues were torn down correctly
-        assert.equal(g8.gameQueues[0].toString(), gameAccount.publicKey.toString());
-        assert.equal(g8.gameQueues[1].toString(), gameAccount.publicKey.toString());
-        assert.equal(g8.gameQueues[2].toString(), gameAccount.publicKey.toString());
-        assert.equal(g8.gameQueues[3].toString(), gameAccount.publicKey.toString());
+    const { updatedGame: g8 } = await finishFourPlayerKingOfHillQueue(program, provider, playerAccountEighteen, playerAccountEighteen, playerAccountEighteen, gameQueueAccountFive, gameQueueAccountSix, gameQueueAccountSeven, gameQueueAccountEight, gameAccount);
 
-        const { playerAccount: playerAccountTwenty, gameQueueAccountOne: gameQueueAccountNine, gameQueueAccountTwo: gameQueueAccountTen, gameQueueAccountThree: gameQueueAccountEleven, gameQueueAccountFour: gameQueueAccountTwelve } = await initFourPlayerQueue(program, provider, gameAccount);
-        const { playerAccount: playerAccountTwentyOne } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTen, playerAccountTwenty);
-        const { playerAccount: playerAccountTwentyTwo } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEleven, playerAccountTwenty);
-        const { playerAccount: playerAccountTwentyThree } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwelve, playerAccountTwenty);
-        const { playerAccount: playerAccountTwentyFour } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountNine, playerAccountTwenty);
-        const { playerAccount: playerAccountTwentyFive } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTen, playerAccountTwentyOne);
-        const { playerAccount: playerAccountTwentySix } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwelve, playerAccountTwentyThree);
+    // Assert queues were torn down correctly
+    assert.equal(g8.gameQueues[0].toString(), gameAccount.publicKey.toString());
+    assert.equal(g8.gameQueues[1].toString(), gameAccount.publicKey.toString());
+    assert.equal(g8.gameQueues[2].toString(), gameAccount.publicKey.toString());
+    assert.equal(g8.gameQueues[3].toString(), gameAccount.publicKey.toString());
 
-        const g9 = await program.account.game.fetch(gameAccount.publicKey);
-        const p209 = await program.account.player.fetch(playerAccountTwenty.publicKey);
-        const p219 = await program.account.player.fetch(playerAccountTwentyOne.publicKey);
-        const p229 = await program.account.player.fetch(playerAccountTwentyTwo.publicKey);
-        const p239 = await program.account.player.fetch(playerAccountTwentyThree.publicKey);
-        const p249 = await program.account.player.fetch(playerAccountTwentyFour.publicKey);
-        const p259 = await program.account.player.fetch(playerAccountTwentyFive.publicKey);
-        const p269 = await program.account.player.fetch(playerAccountTwentySix.publicKey);
-        const q99 = await program.account.gameQueue.fetch(gameQueueAccountNine.publicKey);
-        const q109 = await program.account.gameQueue.fetch(gameQueueAccountTen.publicKey);
-        const q119 = await program.account.gameQueue.fetch(gameQueueAccountEleven.publicKey);
-        const q129 = await program.account.gameQueue.fetch(gameQueueAccountTwelve.publicKey);
+    const { playerAccount: playerAccountTwenty, gameQueueAccountOne: gameQueueAccountNine, gameQueueAccountTwo: gameQueueAccountTen, gameQueueAccountThree: gameQueueAccountEleven, gameQueueAccountFour: gameQueueAccountTwelve } = await initFourPlayerQueue(program, provider, gameAccount);
+    const { playerAccount: playerAccountTwentyOne } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTen, playerAccountTwenty);
+    const { playerAccount: playerAccountTwentyTwo } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEleven, playerAccountTwenty);
+    const { playerAccount: playerAccountTwentyThree } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwelve, playerAccountTwenty);
+    const { playerAccount: playerAccountTwentyFour } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountNine, playerAccountTwenty);
+    const { playerAccount: playerAccountTwentyFive } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTen, playerAccountTwentyOne);
+    const { playerAccount: playerAccountTwentySix } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwelve, playerAccountTwentyThree);
 
-        // Assert queues were created correctly
-        assert.equal(g9.gameQueues[0].toString(), gameQueueAccountNine.publicKey.toString());
-        assert.equal(g9.gameQueues[1].toString(), gameQueueAccountTen.publicKey.toString());
-        assert.equal(g9.gameQueues[2].toString(), gameQueueAccountEleven.publicKey.toString());
-        assert.equal(g9.gameQueues[3].toString(), gameQueueAccountTwelve.publicKey.toString());
-        assert.equal(p209.nextPlayer.toString(), playerAccountTwentyFour.publicKey.toString());
-        assert.equal(p219.nextPlayer.toString(), playerAccountTwentyFive.publicKey.toString());
-        assert.equal(p239.nextPlayer.toString(), playerAccountTwentySix.publicKey.toString());
-        assert.equal(p249.nextPlayer, null);
-        assert.equal(p259.nextPlayer, null);
-        assert.equal(p229.nextPlayer, null);
-        assert.equal(p269.nextPlayer, null);
-        assert.equal(q99.currentPlayer.toString(), playerAccountTwenty.publicKey.toString());
-        assert.equal(q109.currentPlayer.toString(), playerAccountTwentyOne.publicKey.toString());
-        assert.equal(q119.currentPlayer.toString(), playerAccountTwentyTwo.publicKey.toString());
-        assert.equal(q129.currentPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
-        assert.equal(q99.lastPlayer.toString(), playerAccountTwentyFour.publicKey.toString());
-        assert.equal(q109.lastPlayer.toString(), playerAccountTwentyFive.publicKey.toString());
-        assert.equal(q119.lastPlayer.toString(), playerAccountTwentyTwo.publicKey.toString());
-        assert.equal(q129.lastPlayer.toString(), playerAccountTwentySix.publicKey.toString());
-        assert.equal(q99.numPlayersInQueue.toNumber(), 2);
-        assert.equal(q109.numPlayersInQueue.toNumber(), 2);
-        assert.equal(q119.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q129.numPlayersInQueue.toNumber(), 2);
+    const g9 = await program.account.game.fetch(gameAccount.publicKey);
+    const p209 = await program.account.player.fetch(playerAccountTwenty.publicKey);
+    const p219 = await program.account.player.fetch(playerAccountTwentyOne.publicKey);
+    const p229 = await program.account.player.fetch(playerAccountTwentyTwo.publicKey);
+    const p239 = await program.account.player.fetch(playerAccountTwentyThree.publicKey);
+    const p249 = await program.account.player.fetch(playerAccountTwentyFour.publicKey);
+    const p259 = await program.account.player.fetch(playerAccountTwentyFive.publicKey);
+    const p269 = await program.account.player.fetch(playerAccountTwentySix.publicKey);
+    const q99 = await program.account.gameQueue.fetch(gameQueueAccountNine.publicKey);
+    const q109 = await program.account.gameQueue.fetch(gameQueueAccountTen.publicKey);
+    const q119 = await program.account.gameQueue.fetch(gameQueueAccountEleven.publicKey);
+    const q129 = await program.account.gameQueue.fetch(gameQueueAccountTwelve.publicKey);
 
-        const { updatedGameQueueOne: q910, updatedGameQueueTwo: q1010, updatedGameQueueThree: q1110, updatedGameQueueFour: q1210 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountTwentyThree, playerAccountTwenty, playerAccountTwentyOne, playerAccountTwentyTwo, gameQueueAccountNine, gameQueueAccountTen, gameQueueAccountEleven, gameQueueAccountTwelve, gameAccount);
+    // Assert queues were created correctly
+    assert.equal(g9.gameQueues[0].toString(), gameQueueAccountNine.publicKey.toString());
+    assert.equal(g9.gameQueues[1].toString(), gameQueueAccountTen.publicKey.toString());
+    assert.equal(g9.gameQueues[2].toString(), gameQueueAccountEleven.publicKey.toString());
+    assert.equal(g9.gameQueues[3].toString(), gameQueueAccountTwelve.publicKey.toString());
+    assert.equal(p209.nextPlayer.toString(), playerAccountTwentyFour.publicKey.toString());
+    assert.equal(p219.nextPlayer.toString(), playerAccountTwentyFive.publicKey.toString());
+    assert.equal(p239.nextPlayer.toString(), playerAccountTwentySix.publicKey.toString());
+    assert.equal(p249.nextPlayer, null);
+    assert.equal(p259.nextPlayer, null);
+    assert.equal(p229.nextPlayer, null);
+    assert.equal(p269.nextPlayer, null);
+    assert.equal(q99.currentPlayer.toString(), playerAccountTwenty.publicKey.toString());
+    assert.equal(q109.currentPlayer.toString(), playerAccountTwentyOne.publicKey.toString());
+    assert.equal(q119.currentPlayer.toString(), playerAccountTwentyTwo.publicKey.toString());
+    assert.equal(q129.currentPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
+    assert.equal(q99.lastPlayer.toString(), playerAccountTwentyFour.publicKey.toString());
+    assert.equal(q109.lastPlayer.toString(), playerAccountTwentyFive.publicKey.toString());
+    assert.equal(q119.lastPlayer.toString(), playerAccountTwentyTwo.publicKey.toString());
+    assert.equal(q129.lastPlayer.toString(), playerAccountTwentySix.publicKey.toString());
+    assert.equal(q99.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q109.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q119.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q129.numPlayersInQueue.toNumber(), 2);
 
-        const p2410 = await program.account.player.fetch(playerAccountTwentyFour.publicKey);
-        const p2510 = await program.account.player.fetch(playerAccountTwentyFive.publicKey);
-        const p2610 = await program.account.player.fetch(playerAccountTwentySix.publicKey);
-        const p2310 = await program.account.player.fetch(playerAccountTwentyThree.publicKey);
+    const { updatedGameQueueOne: q910, updatedGameQueueTwo: q1010, updatedGameQueueThree: q1110, updatedGameQueueFour: q1210 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountTwentyThree, playerAccountTwenty, playerAccountTwentyOne, playerAccountTwentyTwo, gameQueueAccountNine, gameQueueAccountTen, gameQueueAccountEleven, gameQueueAccountTwelve, gameAccount);
 
-        // Assert queues were advanced correctly
-        assert.equal(p2410.nextPlayer, null);
-        assert.equal(p2510.nextPlayer, null);
-        assert.equal(p2610.nextPlayer, null);
-        assert.equal(p2310.nextPlayer, null);
-        assert.equal(q910.currentPlayer.toString(), playerAccountTwentyFour.publicKey.toString());
-        assert.equal(q1010.currentPlayer.toString(), playerAccountTwentyFive.publicKey.toString());
-        assert.equal(q1110.currentPlayer.toString(), playerAccountTwentySix.publicKey.toString());
-        assert.equal(q1210.currentPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
-        assert.equal(q910.lastPlayer.toString(), playerAccountTwentyFour.publicKey.toString());
-        assert.equal(q1010.lastPlayer.toString(), playerAccountTwentyFive.publicKey.toString());
-        assert.equal(q1110.lastPlayer.toString(), playerAccountTwentySix.publicKey.toString());
-        assert.equal(q1210.lastPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
-        assert.equal(q910.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q1010.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q1110.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q1210.numPlayersInQueue.toNumber(), 1);
+    const p2410 = await program.account.player.fetch(playerAccountTwentyFour.publicKey);
+    const p2510 = await program.account.player.fetch(playerAccountTwentyFive.publicKey);
+    const p2610 = await program.account.player.fetch(playerAccountTwentySix.publicKey);
+    const p2310 = await program.account.player.fetch(playerAccountTwentyThree.publicKey);
 
-        const { updatedGameQueueOne: q911, updatedGameQueueTwo: q1011, updatedGameQueueThree: q1111, updatedGameQueueFour: q1211 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountTwentySix, playerAccountTwentyFour, playerAccountTwentyFive, playerAccountTwentyThree, gameQueueAccountNine, gameQueueAccountTen, gameQueueAccountEleven, gameQueueAccountTwelve, gameAccount);
+    // Assert queues were advanced correctly
+    assert.equal(p2410.nextPlayer, null);
+    assert.equal(p2510.nextPlayer, null);
+    assert.equal(p2610.nextPlayer, null);
+    assert.equal(p2310.nextPlayer, null);
+    assert.equal(q910.currentPlayer.toString(), playerAccountTwentyFour.publicKey.toString());
+    assert.equal(q1010.currentPlayer.toString(), playerAccountTwentyFive.publicKey.toString());
+    assert.equal(q1110.currentPlayer.toString(), playerAccountTwentySix.publicKey.toString());
+    assert.equal(q1210.currentPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
+    assert.equal(q910.lastPlayer.toString(), playerAccountTwentyFour.publicKey.toString());
+    assert.equal(q1010.lastPlayer.toString(), playerAccountTwentyFive.publicKey.toString());
+    assert.equal(q1110.lastPlayer.toString(), playerAccountTwentySix.publicKey.toString());
+    assert.equal(q1210.lastPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
+    assert.equal(q910.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1010.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1110.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1210.numPlayersInQueue.toNumber(), 1);
 
-        const p2611 = await program.account.player.fetch(playerAccountTwentySix.publicKey);
+    const { updatedGameQueueOne: q911, updatedGameQueueTwo: q1011, updatedGameQueueThree: q1111, updatedGameQueueFour: q1211 } = await advanceFourPlayerKingOfHillQueue(program, provider, playerAccountTwentySix, playerAccountTwentyFour, playerAccountTwentyFive, playerAccountTwentyThree, gameQueueAccountNine, gameQueueAccountTen, gameQueueAccountEleven, gameQueueAccountTwelve, gameAccount);
 
-        // Assert queues were advanced correctly
-        assert.equal(p2611.nextPlayer, null);
-        assert.equal(q911.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q1011.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q1111.currentPlayer.toString(), playerAccountTwentySix.publicKey.toString());
-        assert.equal(q1211.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q911.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q1011.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q1111.lastPlayer.toString(), playerAccountTwentySix.publicKey.toString());
-        assert.equal(q1211.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q911.numPlayersInQueue.toNumber(), 0);
-        assert.equal(q1011.numPlayersInQueue.toNumber(), 0);
-        assert.equal(q1111.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q1211.numPlayersInQueue.toNumber(), 0);
+    const p2611 = await program.account.player.fetch(playerAccountTwentySix.publicKey);
 
-        const {updatedGame: g12 } = await finishFourPlayerKingOfHillQueue(program, provider, playerAccountTwentySix, playerAccountTwentySix, playerAccountTwentySix, gameQueueAccountNine, gameQueueAccountTen, gameQueueAccountEleven, gameQueueAccountTwelve, gameAccount);
+    // Assert queues were advanced correctly
+    assert.equal(p2611.nextPlayer, null);
+    assert.equal(q911.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1011.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1111.currentPlayer.toString(), playerAccountTwentySix.publicKey.toString());
+    assert.equal(q1211.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q911.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1011.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1111.lastPlayer.toString(), playerAccountTwentySix.publicKey.toString());
+    assert.equal(q1211.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q911.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q1011.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q1111.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1211.numPlayersInQueue.toNumber(), 0);
 
-        // Assert queues were torn down correctly
-        assert.equal(g12.gameQueues[0].toString(), gameAccount.publicKey.toString());
-        assert.equal(g12.gameQueues[1].toString(), gameAccount.publicKey.toString());
-        assert.equal(g12.gameQueues[2].toString(), gameAccount.publicKey.toString());
-        assert.equal(g12.gameQueues[3].toString(), gameAccount.publicKey.toString());
+    const {updatedGame: g12 } = await finishFourPlayerKingOfHillQueue(program, provider, playerAccountTwentySix, playerAccountTwentySix, playerAccountTwentySix, gameQueueAccountNine, gameQueueAccountTen, gameQueueAccountEleven, gameQueueAccountTwelve, gameAccount);
 
-        const { playerAccount: playerAccountTwentySeven, gameQueueAccountOne: gameQueueAccountThirteen, gameQueueAccountTwo: gameQueueAccountFourteen, gameQueueAccountThree: gameQueueAccountFifteen, gameQueueAccountFour: gameQueueAccountSixteen } = await initFourPlayerQueue(program, provider, gameAccount);
-        const { playerAccount: playerAccountTwentyEight } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFourteen, playerAccountTwentySeven);
+    // Assert queues were torn down correctly
+    assert.equal(g12.gameQueues[0].toString(), gameAccount.publicKey.toString());
+    assert.equal(g12.gameQueues[1].toString(), gameAccount.publicKey.toString());
+    assert.equal(g12.gameQueues[2].toString(), gameAccount.publicKey.toString());
+    assert.equal(g12.gameQueues[3].toString(), gameAccount.publicKey.toString());
 
-        const g13 = await program.account.game.fetch(gameAccount.publicKey);
-        const p2713 = await program.account.player.fetch(playerAccountTwentySeven.publicKey);
-        const p2813 = await program.account.player.fetch(playerAccountTwentyEight.publicKey);
-        const q1313 = await program.account.gameQueue.fetch(gameQueueAccountThirteen.publicKey);
-        const q1413 = await program.account.gameQueue.fetch(gameQueueAccountFourteen.publicKey);
-        const q1513 = await program.account.gameQueue.fetch(gameQueueAccountFifteen.publicKey);
-        const q1613 = await program.account.gameQueue.fetch(gameQueueAccountSixteen.publicKey);
+    const { playerAccount: playerAccountTwentySeven, gameQueueAccountOne: gameQueueAccountThirteen, gameQueueAccountTwo: gameQueueAccountFourteen, gameQueueAccountThree: gameQueueAccountFifteen, gameQueueAccountFour: gameQueueAccountSixteen } = await initFourPlayerQueue(program, provider, gameAccount);
+    const { playerAccount: playerAccountTwentyEight } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFourteen, playerAccountTwentySeven);
 
-        // Assert queues were set up correctly
-        assert.equal(g13.gameQueues[0].toString(), gameQueueAccountThirteen.publicKey.toString());
-        assert.equal(g13.gameQueues[1].toString(), gameQueueAccountFourteen.publicKey.toString());
-        assert.equal(g13.gameQueues[2].toString(), gameQueueAccountFifteen.publicKey.toString());
-        assert.equal(g13.gameQueues[3].toString(), gameQueueAccountSixteen.publicKey.toString());
-        assert.equal(p2713.nextPlayer, null);
-        assert.equal(p2813.nextPlayer, null);
-        assert.equal(q1313.currentPlayer.toString(), playerAccountTwentySeven.publicKey.toString());
-        assert.equal(q1413.currentPlayer.toString(), playerAccountTwentyEight.publicKey.toString());
-        assert.equal(q1513.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q1613.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q1313.lastPlayer.toString(), playerAccountTwentySeven.publicKey.toString());
-        assert.equal(q1413.lastPlayer.toString(), playerAccountTwentyEight.publicKey.toString());
-        assert.equal(q1513.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q1613.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q1313.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q1413.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q1513.numPlayersInQueue.toNumber(), 0);
-        assert.equal(q1613.numPlayersInQueue.toNumber(), 0);
+    const g13 = await program.account.game.fetch(gameAccount.publicKey);
+    const p2713 = await program.account.player.fetch(playerAccountTwentySeven.publicKey);
+    const p2813 = await program.account.player.fetch(playerAccountTwentyEight.publicKey);
+    const q1313 = await program.account.gameQueue.fetch(gameQueueAccountThirteen.publicKey);
+    const q1413 = await program.account.gameQueue.fetch(gameQueueAccountFourteen.publicKey);
+    const q1513 = await program.account.gameQueue.fetch(gameQueueAccountFifteen.publicKey);
+    const q1613 = await program.account.gameQueue.fetch(gameQueueAccountSixteen.publicKey);
 
-        const { updatedGame: g14 } = await finishFourPlayerKingOfHillQueue(program, provider, playerAccountTwentySeven, playerAccountTwentyEight, playerAccountTwentySeven,  gameQueueAccountThirteen, gameQueueAccountFourteen, gameQueueAccountFifteen, gameQueueAccountSixteen, gameAccount);
+    // Assert queues were set up correctly
+    assert.equal(g13.gameQueues[0].toString(), gameQueueAccountThirteen.publicKey.toString());
+    assert.equal(g13.gameQueues[1].toString(), gameQueueAccountFourteen.publicKey.toString());
+    assert.equal(g13.gameQueues[2].toString(), gameQueueAccountFifteen.publicKey.toString());
+    assert.equal(g13.gameQueues[3].toString(), gameQueueAccountSixteen.publicKey.toString());
+    assert.equal(p2713.nextPlayer, null);
+    assert.equal(p2813.nextPlayer, null);
+    assert.equal(q1313.currentPlayer.toString(), playerAccountTwentySeven.publicKey.toString());
+    assert.equal(q1413.currentPlayer.toString(), playerAccountTwentyEight.publicKey.toString());
+    assert.equal(q1513.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1613.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1313.lastPlayer.toString(), playerAccountTwentySeven.publicKey.toString());
+    assert.equal(q1413.lastPlayer.toString(), playerAccountTwentyEight.publicKey.toString());
+    assert.equal(q1513.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1613.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1313.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1413.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1513.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q1613.numPlayersInQueue.toNumber(), 0);
 
-        // Assert queues were torn down correctly
-        assert.equal(g14.gameQueues[0].toString(), gameAccount.publicKey.toString());
-        assert.equal(g14.gameQueues[1].toString(), gameAccount.publicKey.toString());
-        assert.equal(g14.gameQueues[2].toString(), gameAccount.publicKey.toString());
-        assert.equal(g14.gameQueues[3].toString(), gameAccount.publicKey.toString());
+    const { updatedGame: g14 } = await finishFourPlayerKingOfHillQueue(program, provider, playerAccountTwentySeven, playerAccountTwentyEight, playerAccountTwentySeven,  gameQueueAccountThirteen, gameQueueAccountFourteen, gameQueueAccountFifteen, gameQueueAccountSixteen, gameAccount);
 
-        const { playerAccount: playerAccountTwentyNine, gameQueueAccountOne: gameQueueAccountSeventeen, gameQueueAccountTwo: gameQueueAccountEighteen, gameQueueAccountThree: gameQueueAccountNineteen, gameQueueAccountFour: gameQueueAccountTwenty } = await initFourPlayerQueue(program, provider, gameAccount);
-        const { playerAccount: playerAccountThirty } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEighteen, playerAccountTwentyNine);
-        const { playerAccount: playerAccountThirtyOne } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountNineteen, playerAccountTwentyNine);
+    // Assert queues were torn down correctly
+    assert.equal(g14.gameQueues[0].toString(), gameAccount.publicKey.toString());
+    assert.equal(g14.gameQueues[1].toString(), gameAccount.publicKey.toString());
+    assert.equal(g14.gameQueues[2].toString(), gameAccount.publicKey.toString());
+    assert.equal(g14.gameQueues[3].toString(), gameAccount.publicKey.toString());
 
-        const g15 = await program.account.game.fetch(gameAccount.publicKey);
-        const p2915 = await program.account.player.fetch(playerAccountTwentyNine.publicKey);
-        const p3015 = await program.account.player.fetch(playerAccountThirty.publicKey);
-        const p3115 = await program.account.player.fetch(playerAccountThirtyOne.publicKey);
-        const q1715 = await program.account.gameQueue.fetch(gameQueueAccountSeventeen.publicKey);
-        const q1815 = await program.account.gameQueue.fetch(gameQueueAccountEighteen.publicKey);
-        const q1915 = await program.account.gameQueue.fetch(gameQueueAccountNineteen.publicKey);
-        const q2015 = await program.account.gameQueue.fetch(gameQueueAccountTwenty.publicKey);
+    const { playerAccount: playerAccountTwentyNine, gameQueueAccountOne: gameQueueAccountSeventeen, gameQueueAccountTwo: gameQueueAccountEighteen, gameQueueAccountThree: gameQueueAccountNineteen, gameQueueAccountFour: gameQueueAccountTwenty } = await initFourPlayerQueue(program, provider, gameAccount);
+    const { playerAccount: playerAccountThirty } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEighteen, playerAccountTwentyNine);
+    const { playerAccount: playerAccountThirtyOne } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountNineteen, playerAccountTwentyNine);
 
-        // Assert queues were set up correctly
-        assert.equal(g15.gameQueues[0].toString(), gameQueueAccountSeventeen.publicKey.toString());
-        assert.equal(g15.gameQueues[1].toString(), gameQueueAccountEighteen.publicKey.toString());
-        assert.equal(g15.gameQueues[2].toString(), gameQueueAccountNineteen.publicKey.toString());
-        assert.equal(g15.gameQueues[3].toString(), gameQueueAccountTwenty.publicKey.toString());
-        assert.equal(p2915.nextPlayer, null);
-        assert.equal(p3015.nextPlayer, null);
-        assert.equal(p3115.nextPlayer, null);
-        assert.equal(q1715.currentPlayer.toString(), playerAccountTwentyNine.publicKey.toString());
-        assert.equal(q1815.currentPlayer.toString(), playerAccountThirty.publicKey.toString());
-        assert.equal(q1915.currentPlayer.toString(), playerAccountThirtyOne.publicKey.toString());
-        assert.equal(q2015.currentPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q1715.lastPlayer.toString(), playerAccountTwentyNine.publicKey.toString());
-        assert.equal(q1815.lastPlayer.toString(), playerAccountThirty.publicKey.toString());
-        assert.equal(q1915.lastPlayer.toString(), playerAccountThirtyOne.publicKey.toString());
-        assert.equal(q2015.lastPlayer.toString(), gameAccount.publicKey.toString());
-        assert.equal(q1715.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q1815.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q1915.numPlayersInQueue.toNumber(), 1);
-        assert.equal(q2015.numPlayersInQueue.toNumber(), 0);
+    const g15 = await program.account.game.fetch(gameAccount.publicKey);
+    const p2915 = await program.account.player.fetch(playerAccountTwentyNine.publicKey);
+    const p3015 = await program.account.player.fetch(playerAccountThirty.publicKey);
+    const p3115 = await program.account.player.fetch(playerAccountThirtyOne.publicKey);
+    const q1715 = await program.account.gameQueue.fetch(gameQueueAccountSeventeen.publicKey);
+    const q1815 = await program.account.gameQueue.fetch(gameQueueAccountEighteen.publicKey);
+    const q1915 = await program.account.gameQueue.fetch(gameQueueAccountNineteen.publicKey);
+    const q2015 = await program.account.gameQueue.fetch(gameQueueAccountTwenty.publicKey);
 
-        const { updatedGame: g16 } = await finishFourPlayerKingOfHillQueue(program, provider, playerAccountTwentyNine, playerAccountThirty, playerAccountThirtyOne, gameQueueAccountSeventeen, gameQueueAccountEighteen, gameQueueAccountNineteen, gameQueueAccountTwenty, gameAccount);
+    // Assert queues were set up correctly
+    assert.equal(g15.gameQueues[0].toString(), gameQueueAccountSeventeen.publicKey.toString());
+    assert.equal(g15.gameQueues[1].toString(), gameQueueAccountEighteen.publicKey.toString());
+    assert.equal(g15.gameQueues[2].toString(), gameQueueAccountNineteen.publicKey.toString());
+    assert.equal(g15.gameQueues[3].toString(), gameQueueAccountTwenty.publicKey.toString());
+    assert.equal(p2915.nextPlayer, null);
+    assert.equal(p3015.nextPlayer, null);
+    assert.equal(p3115.nextPlayer, null);
+    assert.equal(q1715.currentPlayer.toString(), playerAccountTwentyNine.publicKey.toString());
+    assert.equal(q1815.currentPlayer.toString(), playerAccountThirty.publicKey.toString());
+    assert.equal(q1915.currentPlayer.toString(), playerAccountThirtyOne.publicKey.toString());
+    assert.equal(q2015.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1715.lastPlayer.toString(), playerAccountTwentyNine.publicKey.toString());
+    assert.equal(q1815.lastPlayer.toString(), playerAccountThirty.publicKey.toString());
+    assert.equal(q1915.lastPlayer.toString(), playerAccountThirtyOne.publicKey.toString());
+    assert.equal(q2015.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1715.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1815.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1915.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q2015.numPlayersInQueue.toNumber(), 0);
 
-        // Assert queues were torn down correctly
-        assert.equal(g16.gameQueues[0].toString(), gameAccount.publicKey.toString());
-        assert.equal(g16.gameQueues[1].toString(), gameAccount.publicKey.toString());
-        assert.equal(g16.gameQueues[2].toString(), gameAccount.publicKey.toString());
-        assert.equal(g16.gameQueues[3].toString(), gameAccount.publicKey.toString());
+    const { updatedGame: g16 } = await finishFourPlayerKingOfHillQueue(program, provider, playerAccountTwentyNine, playerAccountThirty, playerAccountThirtyOne, gameQueueAccountSeventeen, gameQueueAccountEighteen, gameQueueAccountNineteen, gameQueueAccountTwenty, gameAccount);
+
+    // Assert queues were torn down correctly
+    assert.equal(g16.gameQueues[0].toString(), gameAccount.publicKey.toString());
+    assert.equal(g16.gameQueues[1].toString(), gameAccount.publicKey.toString());
+    assert.equal(g16.gameQueues[2].toString(), gameAccount.publicKey.toString());
+    assert.equal(g16.gameQueues[3].toString(), gameAccount.publicKey.toString());
+  });
+
+  // 9 10 11 12 -> 9 10       ->            ->            ->          ->         ->
+  // 5  6  7  8 -> 5  6 11 12 -> 9 10 11 12 -> 9 10       ->          ->         ->
+  // 1  2  3  4 -> 1  2  7  8 -> 5  6  7  8 -> 5  6 11 12 -> 5 6 9 10 -> 5 6 _ _ ->
+  // ==============================================================================
+  //         ->             ->             ->           ->         -> 
+  //         -> __ __ 17 18 ->             ->           ->         -> 23
+  // _ _ _ _ -> 13 14 15 16 -> 17 18 15 16 -> _ _ 15 16 -> _ _ _ _ -> 19 20 21 22 ->
+  // ===============================================================================
+  //             ->          ->         ->             ->             ->          ->
+  //             ->          ->         -> __ __ 28 __ ->             ->          ->
+  // 19 20 23 __ -> _ _ 23 _ -> _ _ _ _ -> 24 25 26 27 -> 28 __ 26 27 -> 28 _ _ _ ->
+  // ===============================================================================
+  //             ->             ->          ->         ->             ->            ->
+  // __ 33 __ __ ->             ->          ->         -> __ __ __ 38 ->            ->
+  // 29 30 31 32 -> 29 30 __ 33 -> _ _ _ 33 -> _ _ _ _ -> 34 35 36 37 -> _ 38 36 37 ->
+  // =================================================================================
+  //          ->
+  //          ->
+  // _ 38 _ _ -> _ _ _ _
+  it("performs operations on a team king of the hill queue", async () => {
+    // Create an arcade
+    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
+
+    // Create global parameters for a king of the hill 3 player game
+    const numPlayers = 4;
+    const gameType = 2;
+
+    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount, numPlayers, gameType);
+
+    const { playerAccount: playerAccountOne, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour } = await initFourPlayerQueue(program, provider, gameAccount);
+    const { playerAccount: playerAccountTwo } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwo, playerAccountOne);
+    const { playerAccount: playerAccountThree } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountThree, playerAccountOne);
+    const { playerAccount: playerAccountFour } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFour, playerAccountOne);
+    const { playerAccount: playerAccountFive } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountOne, playerAccountOne);
+    const { playerAccount: playerAccountSix } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwo, playerAccountTwo);
+    const { playerAccount: playerAccountSeven } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountThree, playerAccountThree);
+    const { playerAccount: playerAccountEight } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFour, playerAccountFour);
+    const { playerAccount: playerAccountNine } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountOne, playerAccountFive);
+    const { playerAccount: playerAccountTen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwo, playerAccountSix);
+    const { playerAccount: playerAccountEleven } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountThree, playerAccountSeven);
+    const { playerAccount: playerAccountTwelve } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFour, playerAccountEight);
+
+    const g0 = await program.account.game.fetch(gameAccount.publicKey);
+    const p10 = await program.account.player.fetch(playerAccountOne.publicKey);
+    const p20 = await program.account.player.fetch(playerAccountTwo.publicKey);
+    const p30 = await program.account.player.fetch(playerAccountThree.publicKey);
+    const p40 = await program.account.player.fetch(playerAccountFour.publicKey);
+    const p50 = await program.account.player.fetch(playerAccountFive.publicKey);
+    const p60 = await program.account.player.fetch(playerAccountSix.publicKey);
+    const p70 = await program.account.player.fetch(playerAccountSeven.publicKey);
+    const p80 = await program.account.player.fetch(playerAccountEight.publicKey);
+    const p90 = await program.account.player.fetch(playerAccountNine.publicKey);
+    const p100 = await program.account.player.fetch(playerAccountTen.publicKey);
+    const p110 = await program.account.player.fetch(playerAccountEleven.publicKey);
+    const p120 = await program.account.player.fetch(playerAccountTwelve.publicKey);
+    const q10 = await program.account.gameQueue.fetch(gameQueueAccountOne.publicKey);
+    const q20 = await program.account.gameQueue.fetch(gameQueueAccountTwo.publicKey);
+    const q30 = await program.account.gameQueue.fetch(gameQueueAccountThree.publicKey);
+    const q40 = await program.account.gameQueue.fetch(gameQueueAccountFour.publicKey);
+
+    // Assert the queues were created correctly
+    assert.equal(g0.gameQueues[0].toString(), gameQueueAccountOne.publicKey.toString());
+    assert.equal(g0.gameQueues[1].toString(), gameQueueAccountTwo.publicKey.toString());
+    assert.equal(g0.gameQueues[2].toString(), gameQueueAccountThree.publicKey.toString());
+    assert.equal(g0.gameQueues[3].toString(), gameQueueAccountFour.publicKey.toString());
+    assert.equal(p10.nextPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(p20.nextPlayer.toString(), playerAccountSix.publicKey.toString());
+    assert.equal(p30.nextPlayer.toString(), playerAccountSeven.publicKey.toString());
+    assert.equal(p40.nextPlayer.toString(), playerAccountEight.publicKey.toString());
+    assert.equal(p50.nextPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(p60.nextPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(p70.nextPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(p80.nextPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(p90.nextPlayer, null);
+    assert.equal(p100.nextPlayer, null);
+    assert.equal(p110.nextPlayer, null);
+    assert.equal(p120.nextPlayer, null);
+    assert.equal(q10.currentPlayer.toString(), playerAccountOne.publicKey.toString());
+    assert.equal(q20.currentPlayer.toString(), playerAccountTwo.publicKey.toString());
+    assert.equal(q30.currentPlayer.toString(), playerAccountThree.publicKey.toString());
+    assert.equal(q40.currentPlayer.toString(), playerAccountFour.publicKey.toString());
+    assert.equal(q10.lastPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(q20.lastPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(q30.lastPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(q40.lastPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(q10.numPlayersInQueue.toNumber(), 3);
+    assert.equal(q20.numPlayersInQueue.toNumber(), 3);
+    assert.equal(q30.numPlayersInQueue.toNumber(), 3);
+    assert.equal(q40.numPlayersInQueue.toNumber(), 3);
+
+    const { updatedGameQueueOne: q11, updatedGameQueueTwo: q21, updatedGameQueueThree: q31, updatedGameQueueFour: q41 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountOne, playerAccountTwo, playerAccountThree, playerAccountFour, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
+
+    const p11 = await program.account.player.fetch(playerAccountOne.publicKey);
+    const p21 = await program.account.player.fetch(playerAccountTwo.publicKey);
+    const p51 = await program.account.player.fetch(playerAccountFive.publicKey);
+    const p61 = await program.account.player.fetch(playerAccountSix.publicKey);
+    const p71 = await program.account.player.fetch(playerAccountSeven.publicKey);
+    const p81 = await program.account.player.fetch(playerAccountEight.publicKey);
+    const p91 = await program.account.player.fetch(playerAccountNine.publicKey);
+    const p101 = await program.account.player.fetch(playerAccountTen.publicKey);
+    const p111 = await program.account.player.fetch(playerAccountEleven.publicKey);
+    const p121 = await program.account.player.fetch(playerAccountTwelve.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p11.nextPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(p21.nextPlayer.toString(), playerAccountSix.publicKey.toString());
+    assert.equal(p51.nextPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(p61.nextPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(p71.nextPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(p81.nextPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(p91.nextPlayer, null);
+    assert.equal(p101.nextPlayer, null);
+    assert.equal(p111.nextPlayer, null);
+    assert.equal(p121.nextPlayer, null);
+    assert.equal(q11.currentPlayer.toString(), playerAccountOne.publicKey.toString());
+    assert.equal(q21.currentPlayer.toString(), playerAccountTwo.publicKey.toString());
+    assert.equal(q31.currentPlayer.toString(), playerAccountSeven.publicKey.toString());
+    assert.equal(q41.currentPlayer.toString(), playerAccountEight.publicKey.toString());
+    assert.equal(q11.lastPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(q21.lastPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(q31.lastPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(q41.lastPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(q11.numPlayersInQueue.toNumber(), 3);
+    assert.equal(q21.numPlayersInQueue.toNumber(), 3);
+    assert.equal(q31.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q41.numPlayersInQueue.toNumber(), 2);
+
+    const { updatedGameQueueOne: q12, updatedGameQueueTwo: q22, updatedGameQueueThree: q32, updatedGameQueueFour: q42 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountSeven, playerAccountEight, playerAccountOne, playerAccountTwo, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
+
+    const p52 = await program.account.player.fetch(playerAccountFive.publicKey);
+    const p62 = await program.account.player.fetch(playerAccountSix.publicKey);
+    const p72 = await program.account.player.fetch(playerAccountSeven.publicKey);
+    const p82 = await program.account.player.fetch(playerAccountEight.publicKey);
+    const p92 = await program.account.player.fetch(playerAccountNine.publicKey);
+    const p102 = await program.account.player.fetch(playerAccountTen.publicKey);
+    const p112 = await program.account.player.fetch(playerAccountEleven.publicKey);
+    const p122 = await program.account.player.fetch(playerAccountTwelve.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p52.nextPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(p62.nextPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(p72.nextPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(p82.nextPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(p92.nextPlayer, null);
+    assert.equal(p102.nextPlayer, null);
+    assert.equal(p112.nextPlayer, null);
+    assert.equal(p122.nextPlayer, null);
+    assert.equal(q12.currentPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(q22.currentPlayer.toString(), playerAccountSix.publicKey.toString());
+    assert.equal(q32.currentPlayer.toString(), playerAccountSeven.publicKey.toString());
+    assert.equal(q42.currentPlayer.toString(), playerAccountEight.publicKey.toString());
+    assert.equal(q12.lastPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(q22.lastPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(q32.lastPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(q42.lastPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(q12.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q22.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q32.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q42.numPlayersInQueue.toNumber(), 2);
+
+    const { updatedGameQueueOne: q13, updatedGameQueueTwo: q23, updatedGameQueueThree: q33, updatedGameQueueFour: q43 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountSix, playerAccountFive, playerAccountEight, playerAccountSeven, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour ,gameAccount);
+
+    const p53 = await program.account.player.fetch(playerAccountFive.publicKey);
+    const p63 = await program.account.player.fetch(playerAccountSix.publicKey);
+    const p93 = await program.account.player.fetch(playerAccountNine.publicKey);
+    const p103 = await program.account.player.fetch(playerAccountTen.publicKey);
+    const p113 = await program.account.player.fetch(playerAccountEleven.publicKey);
+    const p123 = await program.account.player.fetch(playerAccountTwelve.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p53.nextPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(p63.nextPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(p93.nextPlayer, null);
+    assert.equal(p103.nextPlayer, null);
+    assert.equal(p113.nextPlayer, null);
+    assert.equal(p123.nextPlayer, null);
+    assert.equal(q13.currentPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(q23.currentPlayer.toString(), playerAccountSix.publicKey.toString());
+    assert.equal(q33.currentPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(q43.currentPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(q13.lastPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(q23.lastPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(q33.lastPlayer.toString(), playerAccountEleven.publicKey.toString());
+    assert.equal(q43.lastPlayer.toString(), playerAccountTwelve.publicKey.toString());
+    assert.equal(q13.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q23.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q33.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q43.numPlayersInQueue.toNumber(), 1);
+
+    const { updatedGameQueueOne: q14, updatedGameQueueTwo: q24, updatedGameQueueThree: q34, updatedGameQueueFour: q44 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountFive, playerAccountSix, playerAccountEleven, playerAccountTwelve, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
+
+    const p54 = await program.account.player.fetch(playerAccountFive.publicKey);
+    const p64 = await program.account.player.fetch(playerAccountSix.publicKey);
+    const p94 = await program.account.player.fetch(playerAccountNine.publicKey);
+    const p104 = await program.account.player.fetch(playerAccountTen.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p54.nextPlayer, null);
+    assert.equal(p64.nextPlayer, null);
+    assert.equal(p94.nextPlayer, null);
+    assert.equal(p104.nextPlayer, null);
+    assert.equal(q14.currentPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(q24.currentPlayer.toString(), playerAccountSix.publicKey.toString());
+    assert.equal(q34.currentPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(q44.currentPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(q14.lastPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(q24.lastPlayer.toString(), playerAccountSix.publicKey.toString());
+    assert.equal(q34.lastPlayer.toString(), playerAccountNine.publicKey.toString());
+    assert.equal(q44.lastPlayer.toString(), playerAccountTen.publicKey.toString());
+    assert.equal(q14.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q24.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q34.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q44.numPlayersInQueue.toNumber(), 1);
+
+    const { updatedGameQueueOne: q15, updatedGameQueueTwo: q25, updatedGameQueueThree: q35, updatedGameQueueFour: q45 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountFive, playerAccountSix, playerAccountNine, playerAccountTen, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
+
+    const p55 = await program.account.player.fetch(playerAccountFive.publicKey);
+    const p65 = await program.account.player.fetch(playerAccountSix.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p55.nextPlayer, null);
+    assert.equal(p65.nextPlayer, null);
+    assert.equal(q15.currentPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(q25.currentPlayer.toString(), playerAccountSix.publicKey.toString());
+    assert.equal(q35.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q45.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q15.lastPlayer.toString(), playerAccountFive.publicKey.toString());
+    assert.equal(q25.lastPlayer.toString(), playerAccountSix.publicKey.toString());
+    assert.equal(q35.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q45.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q15.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q25.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q35.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q45.numPlayersInQueue.toNumber(), 0);
+
+    const { updatedGame: g6 } = await finishTeamKingOfHillQueue(program, provider, playerAccountFive, playerAccountSix, gameQueueAccountOne, gameQueueAccountTwo, gameQueueAccountThree, gameQueueAccountFour, gameAccount);
+
+    // Assert queues were cleared correctly
+    assert.equal(g6.gameQueues[0].toString(), gameAccount.publicKey.toString());
+    assert.equal(g6.gameQueues[1].toString(), gameAccount.publicKey.toString());
+    assert.equal(g6.gameQueues[2].toString(), gameAccount.publicKey.toString());
+    assert.equal(g6.gameQueues[3].toString(), gameAccount.publicKey.toString());
+
+    const { playerAccount: playerAccountThirteen, gameQueueAccountOne: gameQueueAccountFive, gameQueueAccountTwo: gameQueueAccountSix, gameQueueAccountThree: gameQueueAccountSeven, gameQueueAccountFour: gameQueueAccountEight } = await initFourPlayerQueue(program, provider, gameAccount);
+    const { playerAccount: playerAccountFourteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountSix, playerAccountThirteen);
+    const { playerAccount: playerAccountFifteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountSeven, playerAccountThirteen);
+    const { playerAccount: playerAccountSixteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEight, playerAccountThirteen);
+    const { playerAccount: playerAccountSeventeen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountSeven, playerAccountFifteen);
+    const { playerAccount: playerAccountEighteen } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEight, playerAccountSixteen);
+
+    const g7 = await program.account.game.fetch(gameAccount.publicKey);
+    const p137 = await program.account.player.fetch(playerAccountThirteen.publicKey);
+    const p147 = await program.account.player.fetch(playerAccountFourteen.publicKey);
+    const p157 = await program.account.player.fetch(playerAccountFifteen.publicKey);
+    const p167 = await program.account.player.fetch(playerAccountSixteen.publicKey);
+    const p177 = await program.account.player.fetch(playerAccountSeventeen.publicKey);
+    const p187 = await program.account.player.fetch(playerAccountEighteen.publicKey);
+    const q57 = await program.account.gameQueue.fetch(gameQueueAccountFive.publicKey);
+    const q67 = await program.account.gameQueue.fetch(gameQueueAccountSix.publicKey);
+    const q77 = await program.account.gameQueue.fetch(gameQueueAccountSeven.publicKey);
+    const q87 = await program.account.gameQueue.fetch(gameQueueAccountEight.publicKey);
+
+    // Assert queues were set up correctly
+    assert.equal(g7.gameQueues[0].toString(), gameQueueAccountFive.publicKey.toString());
+    assert.equal(g7.gameQueues[1].toString(), gameQueueAccountSix.publicKey.toString());
+    assert.equal(g7.gameQueues[2].toString(), gameQueueAccountSeven.publicKey.toString());
+    assert.equal(g7.gameQueues[3].toString(), gameQueueAccountEight.publicKey.toString());
+    assert.equal(p157.nextPlayer.toString(), playerAccountSeventeen.publicKey.toString());
+    assert.equal(p167.nextPlayer.toString(), playerAccountEighteen.publicKey.toString());
+    assert.equal(p137.nextPlayer, null);
+    assert.equal(p147.nextPlayer, null);
+    assert.equal(p177.nextPlayer, null);
+    assert.equal(p187.nextPlayer, null);
+    assert.equal(q57.currentPlayer.toString(), playerAccountThirteen.publicKey.toString());
+    assert.equal(q67.currentPlayer.toString(), playerAccountFourteen.publicKey.toString());
+    assert.equal(q77.currentPlayer.toString(), playerAccountFifteen.publicKey.toString());
+    assert.equal(q87.currentPlayer.toString(), playerAccountSixteen.publicKey.toString());
+    assert.equal(q57.lastPlayer.toString(), playerAccountThirteen.publicKey.toString());
+    assert.equal(q67.lastPlayer.toString(), playerAccountFourteen.publicKey.toString());
+    assert.equal(q77.lastPlayer.toString(), playerAccountSeventeen.publicKey.toString());
+    assert.equal(q87.lastPlayer.toString(), playerAccountEighteen.publicKey.toString());
+    assert.equal(q57.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q67.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q77.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q87.numPlayersInQueue.toNumber(), 2);
+
+    const { updatedGameQueueOne: q58, updatedGameQueueTwo: q68, updatedGameQueueThree: q78, updatedGameQueueFour: q88 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountFifteen, playerAccountSixteen, playerAccountThirteen, playerAccountFourteen, gameQueueAccountFive, gameQueueAccountSix, gameQueueAccountSeven, gameQueueAccountEight, gameAccount);
+
+    const p158 = await program.account.player.fetch(playerAccountFifteen.publicKey);
+    const p168 = await program.account.player.fetch(playerAccountSixteen.publicKey);
+    const p178 = await program.account.player.fetch(playerAccountSeventeen.publicKey);
+    const p188 = await program.account.player.fetch(playerAccountEighteen.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p158.nextPlayer, null);
+    assert.equal(p168.nextPlayer, null);
+    assert.equal(p178.nextPlayer, null);
+    assert.equal(p188.nextPlayer, null);
+    assert.equal(q58.currentPlayer.toString(), playerAccountSeventeen.publicKey.toString());
+    assert.equal(q68.currentPlayer.toString(), playerAccountEighteen.publicKey.toString());
+    assert.equal(q78.currentPlayer.toString(), playerAccountFifteen.publicKey.toString());
+    assert.equal(q88.currentPlayer.toString(), playerAccountSixteen.publicKey.toString());
+    assert.equal(q58.lastPlayer.toString(), playerAccountSeventeen.publicKey.toString());
+    assert.equal(q68.lastPlayer.toString(), playerAccountEighteen.publicKey.toString());
+    assert.equal(q78.lastPlayer.toString(), playerAccountFifteen.publicKey.toString());
+    assert.equal(q88.lastPlayer.toString(), playerAccountSixteen.publicKey.toString());
+    assert.equal(q58.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q68.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q78.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q88.numPlayersInQueue.toNumber(), 1);
+
+    const { updatedGameQueueOne: q59, updatedGameQueueTwo: q69, updatedGameQueueThree: q79, updatedGameQueueFour: q89 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountFifteen, playerAccountSixteen, playerAccountSeventeen, playerAccountEighteen, gameQueueAccountFive, gameQueueAccountSix, gameQueueAccountSeven, gameQueueAccountEight, gameAccount);
+
+    const p159 = await program.account.player.fetch(playerAccountFifteen.publicKey);
+    const p169 = await program.account.player.fetch(playerAccountSixteen.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p159.nextPlayer, null);
+    assert.equal(p169.nextPlayer, null);
+    assert.equal(q59.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q69.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q79.currentPlayer.toString(), playerAccountFifteen.publicKey.toString());
+    assert.equal(q89.currentPlayer.toString(), playerAccountSixteen.publicKey.toString());
+    assert.equal(q59.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q69.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q79.lastPlayer.toString(), playerAccountFifteen.publicKey.toString());
+    assert.equal(q89.lastPlayer.toString(), playerAccountSixteen.publicKey.toString());
+    assert.equal(q59.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q69.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q79.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q89.numPlayersInQueue.toNumber(), 1);
+
+    const {updatedGame: g10 } = await finishTeamKingOfHillQueue(program, provider, playerAccountFifteen, playerAccountSixteen, gameQueueAccountFive, gameQueueAccountSix, gameQueueAccountSeven, gameQueueAccountEight, gameAccount);
+
+    // Assert queues were torn down correctly
+    assert.equal(g10.gameQueues[0].toString(), gameAccount.publicKey.toString());
+    assert.equal(g10.gameQueues[1].toString(), gameAccount.publicKey.toString());
+    assert.equal(g10.gameQueues[2].toString(), gameAccount.publicKey.toString());
+    assert.equal(g10.gameQueues[3].toString(), gameAccount.publicKey.toString());
+
+    const { playerAccount: playerAccountNineteen, gameQueueAccountOne: gameQueueAccountNine, gameQueueAccountTwo: gameQueueAccountTen, gameQueueAccountThree: gameQueueAccountEleven, gameQueueAccountFour: gameQueueAccountTwelve } = await initFourPlayerQueue(program, provider, gameAccount);
+    const { playerAccount: playerAccountTwenty } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTen, playerAccountNineteen);
+    const { playerAccount: playerAccountTwentyOne } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEleven, playerAccountNineteen);
+    const { playerAccount: playerAccountTwentyTwo } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwelve, playerAccountNineteen);
+    const { playerAccount: playerAccountTwentyThree } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountNine, playerAccountNineteen);
+
+    const g11 = await program.account.game.fetch(gameAccount.publicKey);
+    const p1911 = await program.account.player.fetch(playerAccountNineteen.publicKey);
+    const p2011 = await program.account.player.fetch(playerAccountTwenty.publicKey);
+    const p2111 = await program.account.player.fetch(playerAccountTwentyOne.publicKey);
+    const p2211 = await program.account.player.fetch(playerAccountTwentyTwo.publicKey);
+    const p2311 = await program.account.player.fetch(playerAccountTwentyThree.publicKey);
+    const q911 = await program.account.gameQueue.fetch(gameQueueAccountNine.publicKey);
+    const q1011 = await program.account.gameQueue.fetch(gameQueueAccountTen.publicKey);
+    const q1111 = await program.account.gameQueue.fetch(gameQueueAccountEleven.publicKey);
+    const q1211 = await program.account.gameQueue.fetch(gameQueueAccountTwelve.publicKey);
+
+    // Assert queues were set up correctly
+    assert.equal(g11.gameQueues[0].toString(), gameQueueAccountNine.publicKey.toString());
+    assert.equal(g11.gameQueues[1].toString(), gameQueueAccountTen.publicKey.toString());
+    assert.equal(g11.gameQueues[2].toString(), gameQueueAccountEleven.publicKey.toString());
+    assert.equal(g11.gameQueues[3].toString(), gameQueueAccountTwelve.publicKey.toString());
+    assert.equal(p1911.nextPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
+    assert.equal(p2111.nextPlayer, null);
+    assert.equal(p2211.nextPlayer, null);
+    assert.equal(p2311.nextPlayer, null);
+    assert.equal(q911.currentPlayer.toString(), playerAccountNineteen.publicKey.toString());
+    assert.equal(q1011.currentPlayer.toString(), playerAccountTwenty.publicKey.toString());
+    assert.equal(q1111.currentPlayer.toString(), playerAccountTwentyOne.publicKey.toString());
+    assert.equal(q1211.currentPlayer.toString(), playerAccountTwentyTwo.publicKey.toString());
+    assert.equal(q911.lastPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
+    assert.equal(q1011.lastPlayer.toString(), playerAccountTwenty.publicKey.toString());
+    assert.equal(q1111.lastPlayer.toString(), playerAccountTwentyOne.publicKey.toString());
+    assert.equal(q1211.lastPlayer.toString(), playerAccountTwentyTwo.publicKey.toString());
+    assert.equal(q911.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q1011.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1111.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1211.numPlayersInQueue.toNumber(), 1);
+
+    const { updatedGameQueueOne: q912, updatedGameQueueTwo: q1012, updatedGameQueueThree: q1112, updatedGameQueueFour: q1212 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountNineteen, playerAccountTwenty, playerAccountTwentyOne, playerAccountTwentyTwo, gameQueueAccountNine, gameQueueAccountTen, gameQueueAccountEleven, gameQueueAccountTwelve, gameAccount);
+
+    const p1912 = await program.account.player.fetch(playerAccountNineteen.publicKey);
+    const p2012 = await program.account.player.fetch(playerAccountTwenty.publicKey);
+    const p2312 = await program.account.player.fetch(playerAccountTwentyThree.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p1912.nextPlayer, null);
+    assert.equal(p2012.nextPlayer, null);
+    assert.equal(p2312.nextPlayer, null);
+    assert.equal(q912.currentPlayer.toString(), playerAccountNineteen.publicKey.toString());
+    assert.equal(q1012.currentPlayer.toString(), playerAccountTwenty.publicKey.toString());
+    assert.equal(q1112.currentPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
+    assert.equal(q1212.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q912.lastPlayer.toString(), playerAccountNineteen.publicKey.toString());
+    assert.equal(q1012.lastPlayer.toString(), playerAccountTwenty.publicKey.toString());
+    assert.equal(q1112.lastPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
+    assert.equal(q1212.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q912.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1012.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1112.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1212.numPlayersInQueue.toNumber(), 0);
+
+    const { updatedGameQueueOne: q913, updatedGameQueueTwo: q1013, updatedGameQueueThree: q1113, updatedGameQueueFour: q1213 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountTwentyThree, playerAccountTwentyThree, playerAccountNineteen, playerAccountTwenty, gameQueueAccountNine, gameQueueAccountTen, gameQueueAccountEleven, gameQueueAccountTwelve, gameAccount);
+
+    const p2313 = await program.account.player.fetch(playerAccountTwentyThree.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p2313.nextPlayer, null);
+    assert.equal(q913.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1013.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1113.currentPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
+    assert.equal(q1213.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q913.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1013.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1113.lastPlayer.toString(), playerAccountTwentyThree.publicKey.toString());
+    assert.equal(q1213.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q913.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q1013.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q1113.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1213.numPlayersInQueue.toNumber(), 0);
+
+    const { updatedGame: g14 } = await finishTeamKingOfHillQueue(program, provider, playerAccountTwentyThree, playerAccountTwentyThree, gameQueueAccountNine, gameQueueAccountTen, gameQueueAccountEleven, gameQueueAccountTwelve, gameAccount);
+
+    // Assert queues were cleared correctly
+    assert.equal(g14.gameQueues[0].toString(), gameAccount.publicKey.toString());
+    assert.equal(g14.gameQueues[1].toString(), gameAccount.publicKey.toString());
+    assert.equal(g14.gameQueues[2].toString(), gameAccount.publicKey.toString());
+    assert.equal(g14.gameQueues[3].toString(), gameAccount.publicKey.toString());
+
+    const { playerAccount: playerAccountTwentyFour, gameQueueAccountOne: gameQueueAccountThirteen, gameQueueAccountTwo: gameQueueAccountFourteen, gameQueueAccountThree: gameQueueAccountFifteen, gameQueueAccountFour: gameQueueAccountSixteen } = await initFourPlayerQueue(program, provider, gameAccount);
+    const { playerAccount: playerAccountTwentyFive } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFourteen, playerAccountTwentyFour);
+    const { playerAccount: playerAccountTwentySix } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFifteen, playerAccountTwentyFour);
+    const { playerAccount: playerAccountTwentySeven } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountSixteen, playerAccountTwentyFour);
+    const { playerAccount: playerAccountTwentyEight } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountFifteen, playerAccountTwentySix);
+
+    const g15 = await program.account.game.fetch(gameAccount.publicKey);
+    const p2415 = await program.account.player.fetch(playerAccountTwentyFour.publicKey);
+    const p2515 = await program.account.player.fetch(playerAccountTwentyFive.publicKey);
+    const p2615 = await program.account.player.fetch(playerAccountTwentySix.publicKey);
+    const p2715 = await program.account.player.fetch(playerAccountTwentySeven.publicKey);
+    const p2815 = await program.account.player.fetch(playerAccountTwentyEight.publicKey);
+    const q1315 = await program.account.gameQueue.fetch(gameQueueAccountThirteen.publicKey);
+    const q1415 = await program.account.gameQueue.fetch(gameQueueAccountFourteen.publicKey);
+    const q1515 = await program.account.gameQueue.fetch(gameQueueAccountFifteen.publicKey);
+    const q1615 = await program.account.gameQueue.fetch(gameQueueAccountSixteen.publicKey);
+
+    // Assert queues were created correctly
+    assert.equal(g15.gameQueues[0].toString(), gameQueueAccountThirteen.publicKey.toString());
+    assert.equal(g15.gameQueues[1].toString(), gameQueueAccountFourteen.publicKey.toString());
+    assert.equal(g15.gameQueues[2].toString(), gameQueueAccountFifteen.publicKey.toString());
+    assert.equal(g15.gameQueues[3].toString(), gameQueueAccountSixteen.publicKey.toString());
+    assert.equal(p2615.nextPlayer.toString(), playerAccountTwentyEight.publicKey.toString());
+    assert.equal(p2415.nextPlayer, null);
+    assert.equal(p2515.nextPlayer, null);
+    assert.equal(p2715.nextPlayer, null);
+    assert.equal(p2815.nextPlayer, null);
+    assert.equal(q1315.currentPlayer.toString(), playerAccountTwentyFour.publicKey.toString());
+    assert.equal(q1415.currentPlayer.toString(), playerAccountTwentyFive.publicKey.toString());
+    assert.equal(q1515.currentPlayer.toString(), playerAccountTwentySix.publicKey.toString());
+    assert.equal(q1615.currentPlayer.toString(), playerAccountTwentySeven.publicKey.toString());
+    assert.equal(q1315.lastPlayer.toString(), playerAccountTwentyFour.publicKey.toString());
+    assert.equal(q1415.lastPlayer.toString(), playerAccountTwentyFive.publicKey.toString());
+    assert.equal(q1515.lastPlayer.toString(), playerAccountTwentyEight.publicKey.toString());
+    assert.equal(q1615.lastPlayer.toString(), playerAccountTwentySeven.publicKey.toString());
+    assert.equal(q1315.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1415.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1515.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q1615.numPlayersInQueue.toNumber(), 1);
+
+    const { updatedGameQueueOne: q1316, updatedGameQueueTwo: q1416, updatedGameQueueThree: q1516, updatedGameQueueFour: q1616 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountTwentySix, playerAccountTwentySeven, playerAccountTwentyFour, playerAccountTwentyFive, gameQueueAccountThirteen, gameQueueAccountFourteen, gameQueueAccountFifteen, gameQueueAccountSixteen, gameAccount);
+
+    const p2816 = await program.account.player.fetch(playerAccountTwentyEight.publicKey);
+    const p2616 = await program.account.player.fetch(playerAccountTwentySix.publicKey);
+    const p2716 = await program.account.player.fetch(playerAccountTwentySeven.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p2816.nextPlayer, null);
+    assert.equal(p2616.nextPlayer, null);
+    assert.equal(p2716.nextPlayer, null);
+    assert.equal(q1316.currentPlayer.toString(), playerAccountTwentyEight.publicKey.toString());
+    assert.equal(q1416.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1516.currentPlayer.toString(), playerAccountTwentySix.publicKey.toString());
+    assert.equal(q1616.currentPlayer.toString(), playerAccountTwentySeven.publicKey.toString());
+    assert.equal(q1316.lastPlayer.toString(), playerAccountTwentyEight.publicKey.toString());
+    assert.equal(q1416.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1516.lastPlayer.toString(), playerAccountTwentySix.publicKey.toString());
+    assert.equal(q1616.lastPlayer.toString(), playerAccountTwentySeven.publicKey.toString());
+    assert.equal(q1316.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1416.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q1516.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1616.numPlayersInQueue.toNumber(), 1);
+
+    const { updatedGameQueueOne: q1317, updatedGameQueueTwo: q1417, updatedGameQueueThree: q1517, updatedGameQueueFour: q1617 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountTwentyEight, playerAccountTwentyEight, playerAccountTwentySix, playerAccountTwentySeven, gameQueueAccountThirteen, gameQueueAccountFourteen, gameQueueAccountFifteen, gameQueueAccountSixteen, gameAccount);
+
+    const p2817 = await program.account.player.fetch(playerAccountTwentyEight.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p2817.nextPlayer, null);
+    assert.equal(q1317.currentPlayer.toString(), playerAccountTwentyEight.publicKey.toString());
+    assert.equal(q1417.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1517.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1617.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1317.lastPlayer.toString(), playerAccountTwentyEight.publicKey.toString());
+    assert.equal(q1417.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1517.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1617.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1317.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1417.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q1517.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q1617.numPlayersInQueue.toNumber(), 0);
+
+    const { updatedGame: g18 } = await finishTeamKingOfHillQueue(program, provider, playerAccountTwentyEight, playerAccountTwentyEight, gameQueueAccountThirteen, gameQueueAccountFourteen, gameQueueAccountFifteen, gameQueueAccountSixteen, gameAccount);
+
+    // Assert queues were cleaned up correctly
+    assert.equal(g18.gameQueues[0].toString(), gameAccount.publicKey.toString());
+    assert.equal(g18.gameQueues[1].toString(), gameAccount.publicKey.toString());
+    assert.equal(g18.gameQueues[2].toString(), gameAccount.publicKey.toString());
+    assert.equal(g18.gameQueues[3].toString(), gameAccount.publicKey.toString());
+
+    const { playerAccount: playerAccountTwentyNine, gameQueueAccountOne: gameQueueAccountSeventeen, gameQueueAccountTwo: gameQueueAccountEighteen, gameQueueAccountThree: gameQueueAccountNineteen, gameQueueAccountFour: gameQueueAccountTwenty } = await initFourPlayerQueue(program, provider, gameAccount);
+    const { playerAccount: playerAccountThirty } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEighteen, playerAccountTwentyNine);
+    const { playerAccount: playerAccountThirtyOne } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountNineteen, playerAccountTwentyNine);
+    const { playerAccount: playerAccountThirtyTwo } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwenty, playerAccountTwentyNine);
+    const { playerAccount: playerAccountThirtyThree } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountEighteen, playerAccountThirty);
+
+    const g19 = await program.account.game.fetch(gameAccount.publicKey);
+    const p2919 = await program.account.player.fetch(playerAccountTwentyNine.publicKey);
+    const p3019 = await program.account.player.fetch(playerAccountThirty.publicKey);
+    const p3119 = await program.account.player.fetch(playerAccountThirtyOne.publicKey);
+    const p3219 = await program.account.player.fetch(playerAccountThirtyTwo.publicKey);
+    const p3319 = await program.account.player.fetch(playerAccountThirtyThree.publicKey);
+    const q1719 = await program.account.gameQueue.fetch(gameQueueAccountSeventeen.publicKey);
+    const q1819 = await program.account.gameQueue.fetch(gameQueueAccountEighteen.publicKey);
+    const q1919 = await program.account.gameQueue.fetch(gameQueueAccountNineteen.publicKey);
+    const q2019 = await program.account.gameQueue.fetch(gameQueueAccountTwenty.publicKey);
+
+    // Assert queues were created correctly
+    assert.equal(g19.gameQueues[0].toString(), gameQueueAccountSeventeen.publicKey.toString());
+    assert.equal(g19.gameQueues[1].toString(), gameQueueAccountEighteen.publicKey.toString());
+    assert.equal(g19.gameQueues[2].toString(), gameQueueAccountNineteen.publicKey.toString());
+    assert.equal(g19.gameQueues[3].toString(), gameQueueAccountTwenty.publicKey.toString());
+    assert.equal(p3019.nextPlayer.toString(), playerAccountThirtyThree.publicKey.toString());
+    assert.equal(p2919.nextPlayer, null);
+    assert.equal(p3119.nextPlayer, null);
+    assert.equal(p3219.nextPlayer, null);
+    assert.equal(p3319.nextPlayer, null);
+    assert.equal(q1719.currentPlayer.toString(), playerAccountTwentyNine.publicKey.toString());
+    assert.equal(q1819.currentPlayer.toString(), playerAccountThirty.publicKey.toString());
+    assert.equal(q1919.currentPlayer.toString(), playerAccountThirtyOne.publicKey.toString());
+    assert.equal(q2019.currentPlayer.toString(), playerAccountThirtyTwo.publicKey.toString());
+    assert.equal(q1719.lastPlayer.toString(), playerAccountTwentyNine.publicKey.toString());
+    assert.equal(q1819.lastPlayer.toString(), playerAccountThirtyThree.publicKey.toString());
+    assert.equal(q1919.lastPlayer.toString(), playerAccountThirtyOne.publicKey.toString());
+    assert.equal(q2019.lastPlayer.toString(), playerAccountThirtyTwo.publicKey.toString());
+    assert.equal(q1719.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1819.numPlayersInQueue.toNumber(), 2);
+    assert.equal(q1919.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q2019.numPlayersInQueue.toNumber(), 1);
+
+    const { updatedGameQueueOne: q1720, updatedGameQueueTwo: q1820, updatedGameQueueThree: q1920, updatedGameQueueFour: q2020 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountTwentyNine, playerAccountThirty, playerAccountThirtyOne, playerAccountThirtyTwo, gameQueueAccountSeventeen, gameQueueAccountEighteen, gameQueueAccountNineteen, gameQueueAccountTwenty, gameAccount);
+
+    const p2920 = await program.account.player.fetch(playerAccountTwentyNine.publicKey);
+    const p3020 = await program.account.player.fetch(playerAccountThirty.publicKey);
+    const p3320 = await program.account.player.fetch(playerAccountThirtyThree.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p2920.nextPlayer, null);
+    assert.equal(p3020.nextPlayer, null);
+    assert.equal(p3320.nextPlayer, null);
+    assert.equal(q1720.currentPlayer.toString(), playerAccountTwentyNine.publicKey.toString());
+    assert.equal(q1820.currentPlayer.toString(), playerAccountThirty.publicKey.toString());
+    assert.equal(q1920.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2020.currentPlayer.toString(), playerAccountThirtyThree.publicKey.toString());
+    assert.equal(q1720.lastPlayer.toString(), playerAccountTwentyNine.publicKey.toString());
+    assert.equal(q1820.lastPlayer.toString(), playerAccountThirty.publicKey.toString());
+    assert.equal(q1920.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2020.lastPlayer.toString(), playerAccountThirtyThree.publicKey.toString());
+    assert.equal(q1720.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1820.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q1920.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q2020.numPlayersInQueue.toNumber(), 1);
+
+    const { updatedGameQueueOne: q1721, updatedGameQueueTwo: q1821, updatedGameQueueThree: q1921, updatedGameQueueFour: q2021 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountThirtyThree, playerAccountThirtyThree, playerAccountTwentyNine, playerAccountThirty, gameQueueAccountSeventeen, gameQueueAccountEighteen, gameQueueAccountNineteen, gameQueueAccountTwenty, gameAccount);
+
+    const p3321 = await program.account.player.fetch(playerAccountThirtyThree.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p3321.nextPlayer, null);
+    assert.equal(q1721.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1821.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1921.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2021.currentPlayer.toString(), playerAccountThirtyThree.publicKey.toString());
+    assert.equal(q1721.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1821.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q1921.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2021.lastPlayer.toString(), playerAccountThirtyThree.publicKey.toString());
+    assert.equal(q1721.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q1821.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q1921.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q2021.numPlayersInQueue.toNumber(), 1);
+
+    const { updatedGame: g22 } = await finishTeamKingOfHillQueue(program, provider, playerAccountThirtyThree, playerAccountThirtyThree, gameQueueAccountSeventeen, gameQueueAccountEighteen, gameQueueAccountNineteen, gameQueueAccountTwenty, gameAccount);
+
+    // Assert queues were taken down correctly
+    assert.equal(g22.gameQueues[0].toString(), gameAccount.publicKey.toString());
+    assert.equal(g22.gameQueues[1].toString(), gameAccount.publicKey.toString());
+    assert.equal(g22.gameQueues[2].toString(), gameAccount.publicKey.toString());
+    assert.equal(g22.gameQueues[3].toString(), gameAccount.publicKey.toString());
+
+    const { playerAccount: playerAccountThirtyFour, gameQueueAccountOne: gameQueueAccountTwentyOne, gameQueueAccountTwo: gameQueueAccountTwentyTwo, gameQueueAccountThree: gameQueueAccountTwentyThree, gameQueueAccountFour: gameQueueAccountTwentyFour } = await initFourPlayerQueue(program, provider, gameAccount);
+    const { playerAccount: playerAccountThirtyFive } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwentyTwo, playerAccountThirtyFour);
+    const { playerAccount: playerAccountThirtySix } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwentyThree, playerAccountThirtyFour);
+    const { playerAccount: playerAccountThirtySeven } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwentyFour, playerAccountThirtyFour);
+    const { playerAccount: playerAccountThirtyEight } = await joinKingOfHillQueue(program, provider, gameAccount, gameQueueAccountTwentyFour, playerAccountThirtySeven);
+
+    const g23 = await program.account.game.fetch(gameAccount.publicKey);
+    const p3423 = await program.account.player.fetch(playerAccountThirtyFour.publicKey);
+    const p3523 = await program.account.player.fetch(playerAccountThirtyFive.publicKey);
+    const p3623 = await program.account.player.fetch(playerAccountThirtySix.publicKey);
+    const p3723 = await program.account.player.fetch(playerAccountThirtySeven.publicKey);
+    const p3823 = await program.account.player.fetch(playerAccountThirtyEight.publicKey);
+    const q2123 = await program.account.gameQueue.fetch(gameQueueAccountTwentyOne.publicKey);
+    const q2223 = await program.account.gameQueue.fetch(gameQueueAccountTwentyTwo.publicKey);
+    const q2323 = await program.account.gameQueue.fetch(gameQueueAccountTwentyThree.publicKey);
+    const q2423 = await program.account.gameQueue.fetch(gameQueueAccountTwentyFour.publicKey);
+
+    // Assert queues were created correctly
+    assert.equal(g23.gameQueues[0].toString(), gameQueueAccountTwentyOne.publicKey.toString());
+    assert.equal(g23.gameQueues[1].toString(), gameQueueAccountTwentyTwo.publicKey.toString());
+    assert.equal(g23.gameQueues[2].toString(), gameQueueAccountTwentyThree.publicKey.toString());
+    assert.equal(g23.gameQueues[3].toString(), gameQueueAccountTwentyFour.publicKey.toString());
+    assert.equal(p3723.nextPlayer.toString(), playerAccountThirtyEight.publicKey.toString());
+    assert.equal(p3423.nextPlayer, null);
+    assert.equal(p3523.nextPlayer, null);
+    assert.equal(p3623.nextPlayer, null);
+    assert.equal(p3823.nextPlayer, null);
+    assert.equal(q2123.currentPlayer.toString(), playerAccountThirtyFour.publicKey.toString());
+    assert.equal(q2223.currentPlayer.toString(), playerAccountThirtyFive.publicKey.toString());
+    assert.equal(q2323.currentPlayer.toString(), playerAccountThirtySix.publicKey.toString());
+    assert.equal(q2423.currentPlayer.toString(), playerAccountThirtySeven.publicKey.toString());
+    assert.equal(q2123.lastPlayer.toString(), playerAccountThirtyFour.publicKey.toString());
+    assert.equal(q2223.lastPlayer.toString(), playerAccountThirtyFive.publicKey.toString());
+    assert.equal(q2323.lastPlayer.toString(), playerAccountThirtySix.publicKey.toString());
+    assert.equal(q2423.lastPlayer.toString(), playerAccountThirtyEight.publicKey.toString());
+    assert.equal(q2123.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q2223.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q2323.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q2423.numPlayersInQueue.toNumber(), 2);
+
+    const { updatedGameQueueOne: q2124, updatedGameQueueTwo: q2224, updatedGameQueueThree: q2324, updatedGameQueueFour: q2424 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountThirtySix, playerAccountThirtySeven, playerAccountThirtyFour, playerAccountThirtyFive, gameQueueAccountTwentyOne, gameQueueAccountTwentyTwo, gameQueueAccountTwentyThree, gameQueueAccountTwentyFour, gameAccount);
+
+    const p3624 = await program.account.player.fetch(playerAccountThirtySix.publicKey.toString());
+    const p3724 = await program.account.player.fetch(playerAccountThirtySeven.publicKey.toString());
+    const p3824 = await program.account.player.fetch(playerAccountThirtyEight.publicKey.toString());
+
+    // Assert queues were advanced correctly
+    assert.equal(p3624.nextPlayer, null);
+    assert.equal(p3724.nextPlayer, null);
+    assert.equal(p3824.nextPlayer, null);
+    assert.equal(q2124.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2224.currentPlayer.toString(), playerAccountThirtyEight.publicKey.toString());
+    assert.equal(q2324.currentPlayer.toString(), playerAccountThirtySix.publicKey.toString());
+    assert.equal(q2424.currentPlayer.toString(), playerAccountThirtySeven.publicKey.toString());
+    assert.equal(q2124.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2224.lastPlayer.toString(), playerAccountThirtyEight.publicKey.toString());
+    assert.equal(q2324.lastPlayer.toString(), playerAccountThirtySix.publicKey.toString());
+    assert.equal(q2424.lastPlayer.toString(), playerAccountThirtySeven.publicKey.toString());
+    assert.equal(q2124.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q2224.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q2324.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q2424.numPlayersInQueue.toNumber(), 1);
+
+    const { updatedGameQueueOne: q2125, updatedGameQueueTwo: q2225, updatedGameQueueThree: q2325, updatedGameQueueFour: q2425 } = await advanceTeamKingOfHillQueue(program, provider, playerAccountThirtyEight, playerAccountThirtyEight, playerAccountThirtySix, playerAccountThirtySeven, gameQueueAccountTwentyOne, gameQueueAccountTwentyTwo, gameQueueAccountTwentyThree, gameQueueAccountTwentyFour, gameAccount);
+
+    const p3825 = await program.account.player.fetch(playerAccountThirtyEight.publicKey);
+
+    // Assert queues were advanced correctly
+    assert.equal(p3825.nextPlayer, null);
+    assert.equal(q2125.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2225.currentPlayer.toString(), playerAccountThirtyEight.publicKey.toString());
+    assert.equal(q2325.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2425.currentPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2125.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2225.lastPlayer.toString(), playerAccountThirtyEight.publicKey.toString());
+    assert.equal(q2325.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2425.lastPlayer.toString(), gameAccount.publicKey.toString());
+    assert.equal(q2125.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q2225.numPlayersInQueue.toNumber(), 1);
+    assert.equal(q2325.numPlayersInQueue.toNumber(), 0);
+    assert.equal(q2425.numPlayersInQueue.toNumber(), 0);
+
+    const { updatedGame: g26 } = await finishTeamKingOfHillQueue(program, provider, playerAccountThirtyEight, playerAccountThirtyEight, gameQueueAccountTwentyOne, gameQueueAccountTwentyTwo, gameQueueAccountTwentyThree, gameQueueAccountTwentyFour, gameAccount);
+
+    // Assert queues were destroyed correctly
+    assert.equal(g26.gameQueues[0].toString(), gameAccount.publicKey.toString());
+    assert.equal(g26.gameQueues[1].toString(), gameAccount.publicKey.toString());
+    assert.equal(g26.gameQueues[2].toString(), gameAccount.publicKey.toString());
+    assert.equal(g26.gameQueues[3].toString(), gameAccount.publicKey.toString());
   });
 });
