@@ -19,12 +19,10 @@ pub mod arcade {
         Ok(())
     }
 
-    /// The function that is called to start a new arcade.
+    /// This function initializes the arcade (i.e. creates the arcade the games will exist on)
     /// 
-    /// I choose not to be an overlord in this case and any person can decide that they do not want to be a part
-    /// of the arcade and can start a new arcade.  I'm not 100% sure how they are going to do front-end for that arcade.
-    /// (perhaps I will), however this is still necessary to start the original arcade (i.e. N8Cade <- working title hopefully I 
-    /// come up with a better name.
+    /// Currently, I think there will only be one arcade, however it may be useful later to have the ability to have multiple arcades
+    /// so this will exist for those possibilities.
     pub fn initialize_arcade(ctx: Context<InitArcade>) -> ProgramResult {
         // Get accounts from the context.
         let arcade_account = &mut ctx.accounts.arcade_account;
@@ -144,6 +142,10 @@ pub mod arcade {
         Ok(())
     }
 
+    /// This function initializes the game queues of a one player normal game
+    /// 
+    /// This function will require the user to pay for the created accounts as well as an additional $0.25
+    /// to fund the game account.
     pub fn init_one_player_game_queue(ctx: Context<InitOnePlayerGameQueue>) -> ProgramResult {
         let game_queue_account = &mut ctx.accounts.game_queue_account;
         let player_account = &mut ctx.accounts.player_account;
@@ -178,9 +180,19 @@ pub mod arcade {
             game_account.game_queues[0] = game_queue_account.key();
         }
 
+        // emit an event to make known that a queue is being created
+        emit!(NewQueueEvent {
+            game_id: game_account.key(),
+            queue_ids: vec![game_queue_account.key()],
+            queue_nums: vec![1],
+            new_player_ids: vec![Some(player_account.key())],
+            num_players: vec![1],
+        });
+
         Ok(())
     }
 
+    /// This function allows a user to join the queue of a 1 player game
     pub fn join_one_player_game_queue(ctx: Context<JoinOnePlayerGameQueue>) -> ProgramResult {
         let player_account = &mut ctx.accounts.player_account;
         let last_player = &mut ctx.accounts.last_player;
@@ -210,12 +222,21 @@ pub mod arcade {
         game_queue_account.last_player = player_account.key();
         game_queue_account.num_players_in_queue += 1;
 
-        // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+        // Emit an event to make known the queue has been updated
+        emit!(JoinQueueEvent {
+            game_id: game_account.key(),
+            queue_id: game_queue_account.key(),
+            queue_num: 1,
+            last_player: player_account.key(),
+            num_players: game_queue_account.num_players_in_queue,
+        });
 
         Ok(())
     }
 
+    /// This function advances a one player game (i.e. makes the next player the current player etc.)
     pub fn advance_one_player_game_queue(ctx: Context<AdvanceOnePlayerGameQueue>) -> Result<()> {
+        let game_account = & ctx.accounts.game_account;
         let current_player = &mut ctx.accounts.current_player;
         let game_queue_account = &mut ctx.accounts.game_queue_account;
 
@@ -224,17 +245,37 @@ pub mod arcade {
             None => return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into()),
         };
 
+        // emit an event to make known that the queue has been advanced
+        emit!(AdvanceQueueEvent {
+            game_id: game_account.key(),
+            queue_ids: vec![game_queue_account.key()],
+            queue_nums: vec![1],
+            finished_players: vec![Some(current_player.key())],
+            new_players: vec![current_player.next_player],
+            num_players: vec![game_queue_account.num_players_in_queue],
+        });
+
         Ok(())
     }
-
+    
+    /// This function destroys the queues associated with the one player game to save space and resources.
+    /// 
+    /// The credits associated with these queues is then credited to the game account.
     pub fn finish_one_player_game_queue(ctx: Context<FinishOnePlayerGameQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
         game_account.game_queues[0] = game_account.key();
 
+        emit!(FinishQueueEvent {
+            game_id: game_account.key()
+        });
+
         Ok(())
     }
 
+    /// This function initializes the game queues for a two player game.
+    /// 
+    /// The person initializing the queues will pay $0.25 + the amount it costs to create the queues.
     pub fn init_two_player_game_queue(ctx: Context<InitTwoPlayerGameQueue>) -> ProgramResult {
         let player_account = &mut ctx.accounts.player_account;
         let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
@@ -277,9 +318,19 @@ pub mod arcade {
             game_account.game_queues[1] = game_queue_account_two.key();
         }
 
+        // emit an event to make known that a new queue has been created
+        emit!(NewQueueEvent {
+            game_id: game_account.key(),
+            queue_ids: vec![game_queue_account_one.key(), game_queue_account_two.key()],
+            queue_nums: vec![1, 2],
+            new_player_ids: vec![Some(player_account.key()), None],
+            num_players: vec![1, 0],
+        });
+
         Ok(())
     }
 
+    /// This function allows a user to join a two player game queue
     pub fn join_two_player_game_queue(ctx: Context<JoinTwoPlayerGameQueue>) -> Result<()> {
         let player_account = &mut ctx.accounts.player_account;
         let q1_last_player = &mut ctx.accounts.q1_last_player;
@@ -317,21 +368,42 @@ pub mod arcade {
             game_queue_account_two.last_player = player_account.key();
             game_queue_account_two.num_players_in_queue = 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has joined the queue
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_two.key(),
+                queue_num: 2,
+                last_player: player_account.key(),
+                num_players: 1,
+            });
         } else if game_queue_account_one.num_players_in_queue == game_queue_account_two.num_players_in_queue {
             // Add new player behind current player 1
             q1_last_player.next_player = Some(player_account.key());
             game_queue_account_one.last_player = player_account.key();
             game_queue_account_one.num_players_in_queue += 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has joined the queue
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_one.key(),
+                queue_num: 1,
+                last_player: player_account.key(),
+                num_players: game_queue_account_one.num_players_in_queue,
+            });
         } else {
             // Add new player behind current player 2
             q2_last_player.next_player = Some(player_account.key());
             game_queue_account_two.last_player = player_account.key();
             game_queue_account_two.num_players_in_queue += 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has joined the queue
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_two.key(),
+                queue_num: 2,
+                last_player: player_account.key(),
+                num_players: game_queue_account_two.num_players_in_queue,
+            });
         }
 
         Ok(())
@@ -353,6 +425,17 @@ pub mod arcade {
             Some(player) => (player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue - 1),
             None => (game_account.key(), game_account.key(), 0),
         };
+
+        emit!(AdvanceQueueEvent {
+            game_id: game_account.key(),
+            queue_ids: vec![game_queue_account_one.key(), game_queue_account_two.key()],
+            queue_nums: vec![1, 2],
+            finished_players: if player_one.key() == player_two.key() { vec![Some(player_one.key()), None] }
+                              else { vec![Some(player_one.key()), Some(player_two.key())] },
+            new_players: if game_queue_account_two.current_player == game_account.key() { vec![Some(game_queue_account_one.current_player), None] }
+                         else { vec![Some(game_queue_account_one.current_player), Some(game_queue_account_two.current_player)] },
+            num_players: vec![game_queue_account_one.num_players_in_queue, game_queue_account_two.num_players_in_queue],
+        });
 
         Ok(())
     }
@@ -386,6 +469,16 @@ pub mod arcade {
                     None => (game_account.key(), game_account.key(), 0),
                 },
             };
+
+            // emit an event to make known that the queues have been advanced
+            emit!(AdvanceQueueEvent {
+                game_id: game_account.key(),
+                queue_ids: vec![game_queue_account_one.key()],
+                queue_nums: vec![1],
+                finished_players: vec![Some(losing_player.key())],
+                new_players: vec![losing_player.next_player],
+                num_players: vec![game_queue_account_one.num_players_in_queue, game_queue_account_two.num_players_in_queue],
+            });
         } else {
             (game_queue_account_two.current_player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue) = match losing_player.next_player {
                 Some(player) => (player, game_queue_account_two.last_player, game_queue_account_two.num_players_in_queue - 1),
@@ -402,6 +495,16 @@ pub mod arcade {
                     None => (game_account.key(), game_account.key(), 0),
                 },
             };
+
+            // emit an event to make known that the queues have been advanced
+            emit!(AdvanceQueueEvent {
+                game_id: game_account.key(),
+                queue_ids: vec![game_queue_account_two.key()],
+                queue_nums: vec![2],
+                finished_players: vec![Some(losing_player.key())],
+                new_players: vec![losing_player.next_player],
+                num_players: vec![game_queue_account_one.num_players_in_queue, game_queue_account_two.num_players_in_queue],
+            });
         }
 
         return Ok(());
@@ -414,6 +517,11 @@ pub mod arcade {
             game_account.game_queues[i] = game_account.key();
         }
 
+        // emit an event to make known that the queues have been deleted
+        emit!(FinishQueueEvent {
+            game_id: game_account.key(),
+        });
+
         Ok(())
     }
 
@@ -423,6 +531,11 @@ pub mod arcade {
         for i in 0..2 {
             game_account.game_queues[i] = game_account.key();
         }
+
+        // emit an event to make known that the queues have been deleted
+        emit!(FinishQueueEvent {
+            game_id: game_account.key(),
+        });
 
         Ok(())
     }
@@ -477,6 +590,19 @@ pub mod arcade {
             game_account.game_queues[2] = game_queue_account_three.key();
         }
 
+        // emit event to make known that a new game queue has started
+        emit!(NewQueueEvent {
+            game_id: game_account.key(),
+            queue_ids: vec![
+                game_queue_account_one.key(),
+                game_queue_account_two.key(),
+                game_queue_account_three.key(),
+            ],
+            queue_nums: vec![1, 2, 3],
+            new_player_ids: vec![Some(player_account.key()), None, None],
+            num_players: vec![1, 0, 0],
+        });
+
         Ok(())
     }
 
@@ -522,7 +648,14 @@ pub mod arcade {
             game_queue_account_two.last_player = player_account.key();
             game_queue_account_two.num_players_in_queue = 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit event to make known that a player has joined the game
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_two.key(),
+                queue_num: 2,
+                last_player: player_account.key(),
+                num_players: 1,
+            });
 
             return Ok(());
         }
@@ -533,7 +666,14 @@ pub mod arcade {
             game_queue_account_three.last_player = player_account.key();
             game_queue_account_three.num_players_in_queue = 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known that a player has joined the game
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_three.key(),
+                queue_num: 3,
+                last_player: player_account.key(),
+                num_players: 1,
+            });
 
             return Ok(());
         }
@@ -545,21 +685,42 @@ pub mod arcade {
             game_queue_account_one.last_player = player_account.key();
             game_queue_account_one.num_players_in_queue += 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has been added to the end of queue 1
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_one.key(),
+                queue_num: 1,
+                last_player: player_account.key(),
+                num_players: game_queue_account_one.num_players_in_queue,
+            });
         } else if game_queue_account_two.num_players_in_queue == game_queue_account_three.num_players_in_queue {
             // Add a new player behind player 2.
             q2_last_player.next_player = Some(player_account.key());
             game_queue_account_two.last_player = player_account.key();
             game_queue_account_two.num_players_in_queue += 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has been added to the end of queue 2
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_two.key(),
+                queue_num: 2,
+                last_player: player_account.key(),
+                num_players: game_queue_account_two.num_players_in_queue,
+            });
         } else {
             // Add a new player behind player 3.
             q3_last_player.next_player = Some(player_account.key());
             game_queue_account_three.last_player = player_account.key();
             game_queue_account_three.num_players_in_queue += 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has been added to the end of queue 3
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_three.key(),
+                queue_num: 3,
+                last_player: player_account.key(),
+                num_players: game_queue_account_three.num_players_in_queue,
+            });
         }
 
         Ok(())
@@ -588,6 +749,32 @@ pub mod arcade {
             Some(player) => (player, game_queue_account_three.last_player, game_queue_account_three.num_players_in_queue - 1),
             None => (game_account.key(), game_account.key(), 0),
         };
+
+        // emit an event to make known that the game queue has been advanced
+        emit!(AdvanceQueueEvent {
+            game_id: game_account.key(),
+            queue_ids: vec![
+                game_queue_account_one.key(),
+                game_queue_account_two.key(),
+                game_queue_account_three.key(),
+            ],
+            queue_nums: vec![1, 2, 3],
+            finished_players: vec![
+                Some(player_one.key()),
+                Some(player_two.key()),
+                Some(player_three.key()),
+            ],
+            new_players: vec![
+                player_one.next_player,
+                player_two.next_player,
+                player_three.next_player,
+            ],
+            num_players: vec![
+                game_queue_account_one.num_players_in_queue,
+                game_queue_account_two.num_players_in_queue,
+                game_queue_account_three.num_players_in_queue,
+            ],
+        });
 
         Ok(())
     }
@@ -637,7 +824,7 @@ pub mod arcade {
                         },
                         None => (game_account.key(), game_account.key(), 0),
                     },
-                }
+                };
             } else if player_mappings[i] == 3 {
                 (queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue) = match losing_player_two.next_player {
                     Some(player) => (player, queues[i].last_player, queues[i].num_players_in_queue - 1),
@@ -658,6 +845,20 @@ pub mod arcade {
                     },
                 };
             }
+
+            // emit an event to make known that the game queue has advanced
+            // emit!(AdvanceQueueEvent {
+            //     game_id: game_account.key(),
+            //     queue_ids: queue_ids,
+            //     queue_nums: queue_nums,
+            //     finished_players: finished_players,
+            //     new_players: new_players,
+            //     num_players: vec![
+            //         queues[0].num_players_in_queue,
+            //         queues[1].num_players_in_queue,
+            //         queues[2].num_players_in_queue
+            //     ],
+            // });
         }
 
         Ok(())
@@ -2233,12 +2434,16 @@ impl ArcadeState {
 /// 0 -> Normal
 /// 1 -> King of the Hill
 /// 2 -> Team King of the Hill
+/// 3 -> 18+ Normal
+/// 4 -> 18+ King of the Hill
+/// 5 -> 18+ Team King of the Hill
 pub struct Game {
     pub title: String,
     pub web_gl_hash: String,
     pub game_art_hash: String,
     pub max_players: u8,
     pub game_type: u8,
+    pub strikes: u8,
     pub leaderboard: Leaderboard,
     pub game_queues: Vec<Pubkey>,
     pub younger_game_key: Pubkey,
@@ -2249,7 +2454,7 @@ pub struct Game {
 impl Game {
     pub const MAX_SIZE: usize = (30 * mem::size_of::<char>()) + // size of title
                                 (2 * 256 * mem::size_of::<char>()) + // size of webgl hash and game art hash
-                                (2 * mem::size_of::<u8>()) + // size of max players + game type
+                                (3 * mem::size_of::<u8>()) + // size of max players + game type
                                 (Leaderboard::MAX_SIZE) + // size of leaderboard
                                 (4 + 4 * mem::size_of::<Pubkey>()) + // size of game queues vector
                                 (3 * mem::size_of::<Pubkey>()); // size of younger_game_key older_game_key and owner wallet
@@ -2323,6 +2528,56 @@ pub struct LeaderboardEvent {
     pub first_place_player_name: String, // The 3 character name of the first place player.
     pub second_place_player_name: String, // The 3 character name of the second place player.
     pub third_place_player_name: String, // The 3 character name of the third place player.
+}
+
+#[event]
+pub struct NewQueueEvent {
+    pub game_id: Pubkey,
+    pub queue_ids: Vec<Pubkey>,
+    pub queue_nums: Vec<u8>,
+    pub new_player_ids: Vec<Option<Pubkey>>,
+    pub num_players: Vec<u128>,
+}
+
+#[event]
+pub struct JoinQueueEvent {
+    pub game_id: Pubkey,
+    pub queue_id: Pubkey,
+    pub queue_num: u8,
+    pub last_player: Pubkey,
+    pub num_players: u128,
+}
+
+#[event]
+pub struct AdvanceQueueEvent {
+    pub game_id: Pubkey,
+    pub queue_ids: Vec<Pubkey>,
+    pub queue_nums: Vec<u8>,
+    pub finished_players: Vec<Option<Pubkey>>,
+    pub new_players: Vec<Option<Pubkey>>,
+    pub num_players: Vec<u128>,
+}
+
+#[event]
+pub struct FinishQueueEvent {
+    pub game_id: Pubkey,
+}
+
+#[event]
+pub struct GameQueueEvent {
+    pub label: String, // 'CREATE', 'UPDATE', or 'DELETE'
+    pub queue_id: Pubkey, // The public key of the queue
+    pub queue_num: u8, // The relative number of the queue (i.e. 1, 2, 3, or 4)
+    pub current_player: Option<Pubkey>, // The public key of the current player
+    pub last_player: Option<Pubkey>, // The public key of the last player
+    pub num_players: u128, // The number of players in the queue
+}
+
+#[event]
+pub struct PlayerEvent {
+    pub label: String, // 'CREATE', 'UPDATE' or 'DELETE'
+    pub player_id: Pubkey, // The public key of the player
+    pub next_player: Option<Pubkey>, // The public key of the next player
 }
 
 #[error_code]
