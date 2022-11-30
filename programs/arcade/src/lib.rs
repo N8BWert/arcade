@@ -409,6 +409,11 @@ pub mod arcade {
         Ok(())
     }
 
+    /// Advances a 2 player game queue.
+    /// 
+    /// E F -> 
+    /// C D -> E F -> 
+    /// A B -> C D -> E F
     pub fn advance_two_player_game_queue(ctx: Context<AdvanceTwoPlayerGameQueue>) -> Result<()> {
         let player_one = &mut ctx.accounts.player_one;
         let player_two = &mut ctx.accounts.player_two;
@@ -440,6 +445,11 @@ pub mod arcade {
         Ok(())
     }
 
+    /// Advances a two player king of the hill game queue
+    /// 
+    /// E F -> E   -> E   ->     ->     -> 
+    /// C D -> C F -> C   ->   E ->     -> 
+    /// A B -> A D -> A F -> A C -> A E -> A
     pub fn advance_two_player_king_of_hill_queue(ctx: Context<AdvanceTwoPlayerKingOfHillQueue>) -> Result<()> {
         let game_account = &mut ctx.accounts.game_account;
         let winning_player = &mut ctx.accounts.winning_player;
@@ -510,6 +520,7 @@ pub mod arcade {
         return Ok(());
     }
 
+    /// Finishes a 2 player game by resetting the game queue pointers.
     pub fn finish_two_player_game_queue(ctx: Context<FinishTwoPlayerGameQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
@@ -525,6 +536,7 @@ pub mod arcade {
         Ok(())
     }
 
+    /// Finishes a 2 player king of the hill game by resetting the game queue pointers.
     pub fn finish_two_player_king_of_hill_queue(ctx: Context<FinishTwoPlayerKingOfHillQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
@@ -540,6 +552,7 @@ pub mod arcade {
         Ok(())
     }
 
+    /// Initializes the game queues of a 3 player game.
     pub fn init_three_player_game_queue(ctx: Context<InitThreePlayerGameQueue>) -> ProgramResult {
         let player_account = &mut ctx.accounts.player_account;
         let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
@@ -606,6 +619,7 @@ pub mod arcade {
         Ok(())
     }
 
+    /// Joins a player into a normal 3 player game queue
     pub fn join_three_player_game_queue(ctx: Context<JoinThreePlayerGameQueue>) -> Result<()> {
         let player_account = &mut ctx.accounts.player_account;
         let q1_last_player = &mut ctx.accounts.q1_last_player;
@@ -726,6 +740,11 @@ pub mod arcade {
         Ok(())
     }
 
+    /// Advances the game queue for a normal 3 player game
+    /// 
+    /// G H I ->       -> 
+    /// D E F -> G H I ->
+    /// A B C -> D E F -> G H I
     pub fn advance_three_player_game_queue(ctx: Context<AdvanceThreePlayerGameQueue>) -> Result<()> {
         let player_one = &mut ctx.accounts.player_one;
         let player_two = &mut ctx.accounts.player_two;
@@ -779,6 +798,8 @@ pub mod arcade {
         Ok(())
     }
 
+    /// Advances the game queues for a 3 player king of the hill game.
+    /// 
     /// 7 8 9 ->     9  |  5     ->      
     /// 4 5 6 -> 7 8 6  |  4     -> 5    
     /// 1 2 3 -> 4 5 3  |  1 2 3 -> 4 _ 3
@@ -807,6 +828,12 @@ pub mod arcade {
             }
         }
 
+        let mut queue_ids = Vec::with_capacity(2);
+        let mut queue_nums = Vec::with_capacity(2);
+        let mut finished_players = Vec::with_capacity(2);
+        let mut new_players = Vec::with_capacity(2);
+        let mut num_players = Vec::with_capacity(2);
+
         for i in 0..3 {
             if player_mappings[i] == 2 {
                 (queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue) = match losing_player_one.next_player {
@@ -825,6 +852,12 @@ pub mod arcade {
                         None => (game_account.key(), game_account.key(), 0),
                     },
                 };
+
+                queue_ids.push(queues[i].key());
+                queue_nums.push(i as u8);
+                finished_players.push(Some(losing_player_one.key()));
+                new_players.push(if queues[i].current_player != game_account.key() { Some(queues[i].current_player) } else { None });
+                num_players.push(queues[i].num_players_in_queue);
             } else if player_mappings[i] == 3 {
                 (queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue) = match losing_player_two.next_player {
                     Some(player) => (player, queues[i].last_player, queues[i].num_players_in_queue - 1),
@@ -844,26 +877,29 @@ pub mod arcade {
                         },
                     },
                 };
-            }
 
-            // emit an event to make known that the game queue has advanced
-            // emit!(AdvanceQueueEvent {
-            //     game_id: game_account.key(),
-            //     queue_ids: queue_ids,
-            //     queue_nums: queue_nums,
-            //     finished_players: finished_players,
-            //     new_players: new_players,
-            //     num_players: vec![
-            //         queues[0].num_players_in_queue,
-            //         queues[1].num_players_in_queue,
-            //         queues[2].num_players_in_queue
-            //     ],
-            // });
+                queue_ids.push(queues[i].key());
+                queue_nums.push(i as u8);
+                finished_players.push(Some(losing_player_two.key()));
+                new_players.push(if queues[i].current_player != game_account.key() { Some(queues[i].current_player) } else { None });
+                num_players.push(queues[i].num_players_in_queue);
+            }
         }
+
+        // emit an event to make known that the game queue has advanced
+        emit!(AdvanceQueueEvent {
+            game_id: game_account.key(),
+            queue_ids: queue_ids,
+            queue_nums: queue_nums,
+            finished_players: finished_players,
+            new_players: new_players,
+            num_players: num_players,
+        });
 
         Ok(())
     }
 
+    /// Finishes the game queues for a 3 player game by resetting their pointers.
     pub fn finish_three_player_game_queue(ctx: Context<FinishThreePlayerGameQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
@@ -871,19 +907,31 @@ pub mod arcade {
             game_account.game_queues[i] = game_account.key();
         }
 
+        // emit an event to make known that the game queue has ended
+        emit!(FinishQueueEvent {
+            game_id: game_account.key(),
+        });
+
         Ok(())
     }
 
+    /// Finishes the game queues for a 3 player king of the hill game by resetting their pointers.
     pub fn finish_three_player_king_of_hill_queue(ctx: Context<FinishThreePlayerKingOfHillQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
         for i in 0..3 {
             game_account.game_queues[i] = game_account.key();
         }
+
+        // emit and event to make known that the game queue has ended
+        emit!(FinishQueueEvent {
+            game_id: game_account.key(),
+        });
     
         Ok(())
     }
 
+    /// Initializes the game queues for a 4 player game.
     pub fn init_four_player_game_queue(ctx: Context<InitFourPlayerGameQueue>) -> ProgramResult {
         let player_account = &mut ctx.accounts.player_account;
         let game_queue_account_one = &mut ctx.accounts.game_queue_account_one;
@@ -941,10 +989,32 @@ pub mod arcade {
             game_account.game_queues[2] = game_queue_account_three.key();
             game_account.game_queues[3] = game_queue_account_four.key();
         }
+
+        // emit an event to make known the queues were initialized
+        emit!(NewQueueEvent {
+            game_id: game_account.key(),
+            queue_ids: vec![
+                game_queue_account_one.key(),
+                game_queue_account_two.key(),
+                game_queue_account_three.key(),
+                game_queue_account_four.key(),
+            ],
+            queue_nums: vec![1, 2, 3, 4],
+            new_player_ids: vec![
+                Some(player_account.key()),
+                None,
+                None,
+                None,
+            ],
+            num_players: vec![1, 0, 0, 0],
+        });
         
         Ok(())
     }
 
+    /// Joins a player in to a game queue for a normal 4 player game.
+    /// 
+    /// Players are added from left to right to keep order.
     pub fn join_four_player_game_queue(ctx: Context<JoinFourPlayerGameQueue>) -> Result<()> {
         let player_account = &mut ctx.accounts.player_account;
         let q1_last_player = &mut ctx.accounts.q1_last_player;
@@ -992,21 +1062,42 @@ pub mod arcade {
             game_queue_account_two.last_player = player_account.key();
             game_queue_account_two.num_players_in_queue = 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has joined game queue 2
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_two.key(),
+                queue_num: 2,
+                last_player: player_account.key(),
+                num_players: 1,
+            });
         } else if game_queue_account_three.current_player == game_account.key() {
             // Add a new player as player 3
             game_queue_account_three.current_player = player_account.key();
             game_queue_account_three.last_player = player_account.key();
             game_queue_account_three.num_players_in_queue = 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has joined game queue 3
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_three.key(),
+                queue_num: 3,
+                last_player: player_account.key(),
+                num_players: 1,
+            });
         } else if game_queue_account_four.current_player == game_account.key() {
             // Add a new player as player 4
             game_queue_account_four.current_player = player_account.key();
             game_queue_account_four.last_player = player_account.key();
             game_queue_account_four.num_players_in_queue = 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has joined game queue 4
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_four.key(),
+                queue_num: 4,
+                last_player: player_account.key(),
+                num_players: 1,
+            });
         } else if game_queue_account_one.num_players_in_queue == game_queue_account_two.num_players_in_queue &&
                   game_queue_account_two.num_players_in_queue == game_queue_account_three.num_players_in_queue &&
                   game_queue_account_three.num_players_in_queue == game_queue_account_four.num_players_in_queue {
@@ -1015,7 +1106,14 @@ pub mod arcade {
             game_queue_account_one.last_player = player_account.key();
             game_queue_account_one.num_players_in_queue += 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has joined game queue 1
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_one.key(),
+                queue_num: 1,
+                last_player: player_account.key(),
+                num_players: game_queue_account_one.num_players_in_queue,
+            });
         } else if game_queue_account_two.num_players_in_queue == game_queue_account_three.num_players_in_queue &&
                   game_queue_account_three.num_players_in_queue == game_queue_account_four.num_players_in_queue {
             // Add a new player behind player 2
@@ -1023,25 +1121,51 @@ pub mod arcade {
             game_queue_account_two.last_player = player_account.key();
             game_queue_account_two.num_players_in_queue += 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has joined game queue 2
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_two.key(),
+                queue_num: 2,
+                last_player: player_account.key(),
+                num_players: game_queue_account_two.num_players_in_queue,
+            });
         } else if game_queue_account_three.num_players_in_queue == game_queue_account_four.num_players_in_queue {
             // Add a new player behind player 3
             q3_last_player.next_player = Some(player_account.key());
             game_queue_account_three.last_player = player_account.key();
             game_queue_account_three.num_players_in_queue += 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has joined game queue 3
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_three.key(),
+                queue_num: 3,
+                last_player: player_account.key(),
+                num_players: game_queue_account_three.num_players_in_queue,
+            });
         } else {
             q4_last_player.next_player = Some(player_account.key());
             game_queue_account_four.last_player = player_account.key();
             game_queue_account_four.num_players_in_queue += 1;
 
-            // TODO: EMIT PLAYER ADDED TO QUEUE EVENT
+            // emit an event to make known a player has joined game queue 4
+            emit!(JoinQueueEvent {
+                game_id: game_account.key(),
+                queue_id: game_queue_account_four.key(),
+                queue_num: 4,
+                last_player: player_account.key(),
+                num_players: game_queue_account_four.num_players_in_queue,
+            });
         }
 
         Ok(())
     }
 
+    /// Advances a normal 4 player game queue
+    /// 
+    /// I J K L ->         -> 
+    /// E F G H -> I J K L -> 
+    /// A B C D -> E F G H -> I J K L 
     pub fn advance_four_player_game_queue(ctx: Context<AdvanceFourPlayerGameQueue>) -> Result<()> {
         let player_one = &mut ctx.accounts.player_one;
         let player_two = &mut ctx.accounts.player_two;
@@ -1073,9 +1197,44 @@ pub mod arcade {
             None => (game_account.key(), game_account.key(), 0),
         };
 
+        // emit an event to make known that the game queue has been advanced
+        emit!(AdvanceQueueEvent {
+            game_id: game_account.key(),
+            queue_ids: vec![
+                game_queue_account_one.key(),
+                game_queue_account_two.key(),
+                game_queue_account_three.key(),
+                game_queue_account_four.key(),
+            ],
+            queue_nums: vec![1, 2, 3, 4],
+            finished_players: vec![
+                Some(player_one.key()),
+                Some(player_two.key()),
+                Some(player_three.key()),
+                Some(player_four.key()),
+            ],
+            new_players: vec![
+                player_one.next_player,
+                player_two.next_player,
+                player_three.next_player,
+                player_four.next_player,
+            ],
+            num_players: vec![
+                game_queue_account_one.num_players_in_queue,
+                game_queue_account_two.num_players_in_queue,
+                game_queue_account_three.num_players_in_queue,
+                game_queue_account_four.num_players_in_queue,
+            ],
+        });
+
         Ok(())
     }
 
+    /// Advances a 4 player king of the hill game.
+    /// 
+    /// I J K L -> I       -> I       ->         ->         ->
+    /// E F G H -> E J K L -> E       ->   I     ->         -> 
+    /// A B C D -> A F G H -> A J K L -> A E _ _ -> A I _ _ -> A
     pub fn advance_four_player_king_of_hill_queue(ctx: Context<AdvanceFourPlayerKingOfHillQueue>) -> Result<()> {
         let winning_player = &mut ctx.accounts.winning_player;
         let losing_player_one = &mut ctx.accounts.losing_player_one;
@@ -1108,6 +1267,12 @@ pub mod arcade {
             }
         }
 
+        let mut queue_ids = Vec::with_capacity(3);
+        let mut queue_nums = Vec::with_capacity(3);
+        let mut finished_players = Vec::with_capacity(3);
+        let mut new_players = Vec::with_capacity(3);
+        let mut num_players = Vec::with_capacity(3);
+
         for i in 0..4 {
             match player_mappings[i] {
                 2 => {
@@ -1127,6 +1292,12 @@ pub mod arcade {
                             None => (game_account.key(), game_account.key(), 0),
                         },
                     };
+
+                    queue_ids.push(queues[i].key());
+                    queue_nums.push(i as u8);
+                    finished_players.push(Some(losing_player_one.key()));
+                    new_players.push(if queues[i].current_player != game_account.key() { Some(queues[i].current_player) } else { None });
+                    num_players.push(queues[i].num_players_in_queue);
                 },
                 3 => {
                     (queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue) = match losing_player_two.next_player {
@@ -1145,6 +1316,12 @@ pub mod arcade {
                             None => (game_account.key(), game_account.key(), 0),
                         },
                     };
+
+                    queue_ids.push(queues[i].key());
+                    queue_nums.push(i as u8);
+                    finished_players.push(Some(losing_player_two.key()));
+                    new_players.push(if queues[i].current_player != game_account.key() { Some(queues[i].current_player) } else { None });
+                    num_players.push(queues[i].num_players_in_queue);
                 },
                 4 => {
                     (queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue) = match losing_player_three.next_player {
@@ -1163,10 +1340,26 @@ pub mod arcade {
                             None => (game_account.key(), game_account.key(), 0),
                         },
                     };
+
+                    queue_ids.push(queues[i].key());
+                    queue_nums.push(i as u8);
+                    finished_players.push(Some(losing_player_three.key()));
+                    new_players.push(if queues[i].current_player != game_account.key() { Some(queues[i].current_player) } else { None });
+                    num_players.push(queues[i].num_players_in_queue);
                 },
                 _ => continue,
             }
         }
+
+        // emit an event to make known that the game queue has advanced
+        emit!(AdvanceQueueEvent {
+            game_id: game_account.key(),
+            queue_ids: queue_ids,
+            queue_nums: queue_nums,
+            finished_players: finished_players,
+            new_players: new_players,
+            num_players: num_players,
+        });
 
         Ok(())
     }
@@ -1207,6 +1400,12 @@ pub mod arcade {
                 return Err(Errors::CannotAdvanceGameQueueIncorrectPlayers.into());
             }
         }
+
+        let mut queue_ids = Vec::with_capacity(2);
+        let mut queue_nums = Vec::with_capacity(2);
+        let mut finished_players = Vec::with_capacity(2);
+        let mut new_players = Vec::with_capacity(2);
+        let mut num_players = Vec::with_capacity(2);
 
         for i in [0, 2] {
             if player_mappings[i] == 3 {
@@ -1285,7 +1484,18 @@ pub mod arcade {
                             ),
                         }
                     },
-                }
+                };
+
+                queue_ids.push(queues[i].key());
+                queue_ids.push(queues[i+1].key());
+                queue_nums.push((i+1) as u8);
+                queue_nums.push((i+2) as u8);
+                finished_players.push(Some(losing_player_one.key()));
+                finished_players.push(Some(losing_player_two.key()));
+                new_players.push(if queues[i].current_player != game_account.key() { Some(queues[i].current_player) } else { None });
+                new_players.push(if queues[i+1].current_player != game_account.key() { Some(queues[i+1].current_player) } else { None });
+                num_players.push(queues[i].num_players_in_queue);
+                num_players.push(queues[i+1].num_players_in_queue);
             } else if player_mappings[i] == 4 {
                 (
                     queues[i].current_player, queues[i].last_player, queues[i].num_players_in_queue,
@@ -1362,13 +1572,35 @@ pub mod arcade {
                             ),
                         }
                     },
-                }
+                };
+
+                queue_ids.push(queues[i].key());
+                queue_ids.push(queues[i+1].key());
+                queue_nums.push((i+1) as u8);
+                queue_nums.push((i+2) as u8);
+                finished_players.push(Some(losing_player_one.key()));
+                finished_players.push(Some(losing_player_two.key()));
+                new_players.push(if queues[i].current_player != game_account.key() { Some(queues[i].current_player) } else { None });
+                new_players.push(if queues[i+1].current_player != game_account.key() { Some(queues[i+1].current_player) } else { None });
+                num_players.push(queues[i].num_players_in_queue);
+                num_players.push(queues[i+1].num_players_in_queue);
             }
         }
+
+        // emit an event to make known the queue has advanced
+        emit!(AdvanceQueueEvent {
+            game_id: game_account.key(),
+            queue_ids: queue_ids,
+            queue_nums: queue_nums,
+            finished_players: finished_players,
+            new_players: new_players,
+            num_players: num_players,
+        });
 
         Ok(())
     }
 
+    /// Finishes a normal 4 player game queue by resetting the queue pointers.
     pub fn finish_four_player_game_queue(ctx: Context<FinishFourPlayerGameQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
@@ -1376,9 +1608,15 @@ pub mod arcade {
             game_account.game_queues[i] = game_account.key();
         }
 
+        // emit an event to make known the queues have been destroyed
+        emit!(FinishQueueEvent {
+            game_id: game_account.key(),
+        });
+
         Ok(())
     }
 
+    /// Finishes a 4 player king of the hill queue by resetting the queue pointers.
     pub fn finish_four_player_king_of_hill_queue(ctx: Context<FinishFourPlayerKingOfHillQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
@@ -1386,9 +1624,15 @@ pub mod arcade {
             game_account.game_queues[i] = game_account.key();
         }
 
+        // emit an event to make known the queues have been destroyed
+        emit!(FinishQueueEvent {
+            game_id: game_account.key(),
+        });
+
         Ok(())
     }
 
+    /// Finishes a team king of the hill queue by resetting the queue pointers.
     pub fn finish_team_king_of_hill_queue(ctx: Context<FinishTeamKingOfHillQueue>) -> ProgramResult {
         let game_account = &mut ctx.accounts.game_account;
 
@@ -1396,9 +1640,15 @@ pub mod arcade {
             game_account.game_queues[i] = game_account.key();
         }
 
+        // emit an event to make known the queues have been destroyed
+        emit!(FinishQueueEvent {
+            game_id: game_account.key(),
+        });
+
         Ok(())
     }
 
+    /// Joins a specific queue for a king of the hill game.
     pub fn join_king_of_hill_game_queue(ctx: Context<JoinKingOfHillGameQueue>) -> Result<()> {
         let player_account = &mut ctx.accounts.player_account;
         let last_player = &mut ctx.accounts.last_player;
@@ -1407,10 +1657,13 @@ pub mod arcade {
         let payer = &mut ctx.accounts.payer;
 
         let mut correct_game_queue = false;
+        let mut queue_num: u8 = 0;
 
         for i in 0..(game_account.max_players as usize) {
             if (*game_account.game_queues.get(i).unwrap()) == game_queue_account.key() {
                 correct_game_queue = true;
+                queue_num = i as u8;
+                break;
             }
         }
 
@@ -1445,6 +1698,15 @@ pub mod arcade {
         game_queue_account.last_player = player_account.key();
         game_queue_account.num_players_in_queue += 1;
 
+        // emit an event to make known the queue has been joined
+        emit!(JoinQueueEvent {
+            game_id: game_account.key(),
+            queue_id: game_queue_account.key(),
+            queue_num: queue_num,
+            last_player: player_account.key(),
+            num_players: game_queue_account.num_players_in_queue,
+        });
+
         Ok(())
     }
 
@@ -1465,7 +1727,7 @@ pub mod arcade {
         let third = game_account.leaderboard.third_place.score;
 
         if score > third {
-            let place = Place {name, wallet_key, score};
+            let place = Place {name: name.clone(), wallet_key, score};
 
             if score > first {
                 game_account.leaderboard.third_place = game_account.leaderboard.second_place.clone();
@@ -1478,6 +1740,15 @@ pub mod arcade {
                 game_account.leaderboard.third_place = place.clone();
             }
         }
+
+        // emit an event to make known the leaderboard has been updated
+        emit!(LeaderboardEvent {
+            game_id: game_account.key(),
+            player_name: name,
+            first_place_name: game_account.leaderboard.first_place.name.to_string(),
+            second_place_name: game_account.leaderboard.second_place.name.to_string(),
+            third_place_name: game_account.leaderboard.third_place.name.to_string(),
+        });
 
         Ok(())
     }
@@ -1513,6 +1784,7 @@ pub struct MakeGame<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to delete a game.
 pub struct DeleteGame<'info> {
     #[account(
         mut,
@@ -1532,6 +1804,7 @@ pub struct DeleteGame<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to delete the most recent game in an arcade.
 pub struct DeleteMostRecentGame<'info> {
     #[account(
         mut,
@@ -1550,6 +1823,7 @@ pub struct DeleteMostRecentGame<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to signify a game has ended and it is time to update the leaderboard.
 pub struct GameEnd<'info> {
     #[account(mut)]
     pub game_account: Account<'info, Game>,
@@ -1558,6 +1832,7 @@ pub struct GameEnd<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to initialize the queue of a 1 player normal game.
 pub struct InitOnePlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
@@ -1575,6 +1850,7 @@ pub struct InitOnePlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to join a 1 player normal game queue.
 pub struct JoinOnePlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
@@ -1593,10 +1869,8 @@ pub struct JoinOnePlayerGameQueue<'info> {
     pub system_program: Program<'info, System>,
 }
 
-// TODO: This transfer of credits might not actually be what I want please check later.
-// My intention is that the 25 cents of solana go into the player's account, which are then transferred into the game account when the player
-// looses.  Or possibly the transfer happens earlier (not sure just check this).
 #[derive(Accounts)]
+/// Context used to advance a 1 player normal game queue.
 pub struct AdvanceOnePlayerGameQueue<'info> {
     #[account(mut, close = game_account)]
     pub current_player: Account<'info, Player>,
@@ -1618,6 +1892,7 @@ pub struct AdvanceOnePlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to finish (destroy queues) for a 1 player normal game.
 pub struct FinishOnePlayerGameQueue<'info> {
     #[account(
         mut,
@@ -1645,6 +1920,7 @@ pub struct FinishOnePlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to initialize the game queues of a 2 player game.
 pub struct InitTwoPlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
@@ -1665,6 +1941,7 @@ pub struct InitTwoPlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to join a normal 2 player game.
 pub struct JoinTwoPlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
@@ -1692,6 +1969,7 @@ pub struct JoinTwoPlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to advance a normal 2 player game.
 pub struct AdvanceTwoPlayerGameQueue<'info> {
     #[account(mut, close = game_account)]
     pub player_one: Account<'info, Player>,
@@ -1722,6 +2000,7 @@ pub struct AdvanceTwoPlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to advance a king of the hill 2 player game.
 pub struct AdvanceTwoPlayerKingOfHillQueue<'info> {
     #[account(mut)]
     pub winning_player: Account<'info, Player>,
@@ -1750,6 +2029,7 @@ pub struct AdvanceTwoPlayerKingOfHillQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to finish (destroy queues) of a normal 2 player game.
 pub struct FinishTwoPlayerGameQueue<'info> {
     #[account(
         mut,
@@ -1792,6 +2072,7 @@ pub struct FinishTwoPlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to finish (destroy queues) of a king of the hill 2 player game.
 pub struct FinishTwoPlayerKingOfHillQueue<'info> {
     #[account(mut, close = game_account)]
     pub losing_player: Account<'info, Player>,
@@ -1820,6 +2101,7 @@ pub struct FinishTwoPlayerKingOfHillQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to initialize the queues for a 3 player game.
 pub struct InitThreePlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
@@ -1843,6 +2125,7 @@ pub struct InitThreePlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to join a normal 3 player game.
 pub struct JoinThreePlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
@@ -1872,6 +2155,7 @@ pub struct JoinThreePlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to advance a normal 3 player game queue.
 pub struct AdvanceThreePlayerGameQueue<'info> {
     #[account(mut, close = game_account)]
     pub player_one: Box<Account<'info, Player>>,
@@ -1911,6 +2195,7 @@ pub struct AdvanceThreePlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to advance a king of the hill 3 player game.
 pub struct AdvanceThreePlayerKingOfHillQueue<'info> {
     #[account(mut)]
     pub winning_player: Box<Account<'info, Player>>,
@@ -1947,6 +2232,7 @@ pub struct AdvanceThreePlayerKingOfHillQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to finish (destroy queues) of a normal 3 player game.
 pub struct FinishThreePlayerGameQueue<'info> {
     #[account(
         mut,
@@ -2004,6 +2290,7 @@ pub struct FinishThreePlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to finish (destroy queues) of a king of the hill 3 player game.
 pub struct FinishThreePlayerKingOfHillQueue<'info> {
     #[account(mut, close = game_account)]
     pub losing_player_one: Box<Account<'info, Player>>,
@@ -2041,6 +2328,7 @@ pub struct FinishThreePlayerKingOfHillQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to initialize the queues of a 4 player game.
 pub struct InitFourPlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
@@ -2067,6 +2355,7 @@ pub struct InitFourPlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to join a normal 4 player game's queues.
 pub struct JoinFourPlayerGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
@@ -2101,6 +2390,7 @@ pub struct JoinFourPlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to advance a normal 4 player game queue.
 pub struct AdvanceFourPlayerGameQueue<'info> {
     #[account(mut, close = game_account)]
     pub player_one: Box<Account<'info, Player>>,
@@ -2149,6 +2439,7 @@ pub struct AdvanceFourPlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to advance a king of the hill 4 player game's queues.
 pub struct AdvanceFourPlayerKingOfHillQueue<'info> {
     #[account(mut)]
     pub winning_player: Box<Account<'info, Player>>,
@@ -2193,6 +2484,7 @@ pub struct AdvanceFourPlayerKingOfHillQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to advance a team king of the hill game's queues.
 pub struct AdvanceTeamKingOfHillQueue<'info> {
     #[account(mut)]
     pub winning_player_one: Box<Account<'info, Player>>,
@@ -2237,6 +2529,7 @@ pub struct AdvanceTeamKingOfHillQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context to finish (destroy queues) a 4 player game.
 pub struct FinishFourPlayerGameQueue<'info> {
     #[account(
         mut,
@@ -2309,6 +2602,7 @@ pub struct FinishFourPlayerGameQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context to finish (destroy queues) for a 4 player king of the hill game.
 pub struct FinishFourPlayerKingOfHillQueue<'info> {
     #[account(mut, close = game_account)]
     pub losing_player_one: Box<Account<'info, Player>>,
@@ -2355,6 +2649,7 @@ pub struct FinishFourPlayerKingOfHillQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to finish (destroy queues) for a 4 player team king of the hill game.
 pub struct FinishTeamKingOfHillQueue<'info> {
     #[account(mut, close = game_account)]
     pub losing_player_one: Box<Account<'info, Player>>,
@@ -2395,6 +2690,7 @@ pub struct FinishTeamKingOfHillQueue<'info> {
 }
 
 #[derive(Accounts)]
+/// Context used to join a king of the hill style game.
 pub struct JoinKingOfHillGameQueue<'info> {
     #[account(init, payer = payer, space = 8 + Player::MAX_SIZE)]
     pub player_account: Account<'info, Player>,
@@ -2515,6 +2811,7 @@ impl Place {
 }
 
 #[event]
+/// This is the event issues whenever a game is added or deleted from an arcade.
 pub struct GameEvent {
     pub label: String, // label will be 'CREATE' and 'DELETE'.
     pub game_id: Pubkey, // created game.
@@ -2523,14 +2820,17 @@ pub struct GameEvent {
 }
 
 #[event]
+/// This is the event issued whenever a leaderboard is updated
 pub struct LeaderboardEvent {
+    pub game_id: Pubkey, // the id of the game whose leaderboard is being updated.
     pub player_name: String, // player_name will be the 3 character name chosen by the player.
-    pub first_place_player_name: String, // The 3 character name of the first place player.
-    pub second_place_player_name: String, // The 3 character name of the second place player.
-    pub third_place_player_name: String, // The 3 character name of the third place player.
+    pub first_place_name: String, // The 3 character name of the first place player.
+    pub second_place_name: String, // The 3 character name of the second place player.
+    pub third_place_name: String, // The 3 character name of the third place player.
 }
 
 #[event]
+/// This is the event issued whenever a new queue is created (i.e. initialize queues is called).
 pub struct NewQueueEvent {
     pub game_id: Pubkey,
     pub queue_ids: Vec<Pubkey>,
@@ -2540,6 +2840,7 @@ pub struct NewQueueEvent {
 }
 
 #[event]
+/// This is the event issued whenever a player joins a game queue
 pub struct JoinQueueEvent {
     pub game_id: Pubkey,
     pub queue_id: Pubkey,
@@ -2549,6 +2850,7 @@ pub struct JoinQueueEvent {
 }
 
 #[event]
+/// This is the event issued whenever a game queue is advanced.
 pub struct AdvanceQueueEvent {
     pub game_id: Pubkey,
     pub queue_ids: Vec<Pubkey>,
@@ -2559,25 +2861,9 @@ pub struct AdvanceQueueEvent {
 }
 
 #[event]
+/// This is the event issued whenever a game queue is destroyed (i.e. when finishing a queue).
 pub struct FinishQueueEvent {
     pub game_id: Pubkey,
-}
-
-#[event]
-pub struct GameQueueEvent {
-    pub label: String, // 'CREATE', 'UPDATE', or 'DELETE'
-    pub queue_id: Pubkey, // The public key of the queue
-    pub queue_num: u8, // The relative number of the queue (i.e. 1, 2, 3, or 4)
-    pub current_player: Option<Pubkey>, // The public key of the current player
-    pub last_player: Option<Pubkey>, // The public key of the last player
-    pub num_players: u128, // The number of players in the queue
-}
-
-#[event]
-pub struct PlayerEvent {
-    pub label: String, // 'CREATE', 'UPDATE' or 'DELETE'
-    pub player_id: Pubkey, // The public key of the player
-    pub next_player: Option<Pubkey>, // The public key of the next player
 }
 
 #[error_code]
