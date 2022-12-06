@@ -1,6 +1,5 @@
 import * as anchor from "@project-serum/anchor";
 import { Program } from "@project-serum/anchor";
-import { BN } from "bn.js";
 import { assert } from "chai";
 import { Arcade } from "../target/types/arcade";
 
