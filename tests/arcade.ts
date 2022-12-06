@@ -2704,19 +2704,19 @@ describe("arcade", () => {
     const score3 = new anchor.BN(500);
     const playerThreeWallet = new anchor.Wallet(playerThreeAccount);
 
-    const { updatedGame: g0 } = await updateLeaderboard(program, provider, gameAccount, playerName, score, playerOneWallet);
+    const { updatedGame: g0 } = await updateLeaderboard(program, gameAccount, playerName, score, playerOneWallet);
 
     assert.equal(g0.leaderboard.firstPlace.name, playerName);
     assert.equal(g0.leaderboard.firstPlace.walletKey.toString(), playerOneWallet.publicKey.toString());
     assert.equal(g0.leaderboard.firstPlace.score.toNumber(), score.toNumber());
 
-    const { updatedGame: g1 } = await updateLeaderboard(program, provider, gameAccount, playerName2, score2, playerTwoWallet);
+    const { updatedGame: g1 } = await updateLeaderboard(program, gameAccount, playerName2, score2, playerTwoWallet);
 
     assert.equal(g1.leaderboard.secondPlace.name, playerName2);
     assert.equal(g1.leaderboard.secondPlace.walletKey.toString(), playerTwoWallet.publicKey.toString());
     assert.equal(g1.leaderboard.secondPlace.score.toNumber(), score2.toNumber());
 
-    const { updatedGame: g2 } = await updateLeaderboard(program, provider, gameAccount, playerName3, score3, playerThreeWallet);
+    const { updatedGame: g2 } = await updateLeaderboard(program, gameAccount, playerName3, score3, playerThreeWallet);
 
     assert.equal(g2.leaderboard.thirdPlace.name, playerName3);
     assert.equal(g2.leaderboard.thirdPlace.walletKey.toString(), playerThreeWallet.publicKey.toString());

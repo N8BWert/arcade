@@ -1942,6 +1942,7 @@ pub struct DeleteMostRecentGame<'info> {
 pub struct GameEnd<'info> {
     #[account(mut)]
     pub game_account: Account<'info, Game>,
+    #[account(mut, constraint = authority.key() == game_account.key())]
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
