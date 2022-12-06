@@ -48,8 +48,8 @@ Now for the twist.  To make things a bit interesting, every play of the arcade m
 - Unity WebGL Support: **IN PROGRESS**
 - Godot: **IF REQUESTED**
 
-* If requested, I can make (or have someone) make support packages/libraries for other game engines to connect their WebGL builds to the arcade.
-* I am also 100% ok with the community making support packages/libraries for other game engines someone just needs to make sure that they work with the arcade and I'll list them above.
+*If requested, I can make (or have someone) make support packages/libraries for other game engines to connect their WebGL builds to the arcade.
+*I am also 100% ok with the community making support packages/libraries for other game engines someone just needs to make sure that they work with the arcade and I'll list them above.
 
 1. Visit [the upload portal]()
 2. Fill in the related fields for your game
@@ -60,7 +60,7 @@ Now for the twist.  To make things a bit interesting, every play of the arcade m
    1. There is a one-time fee to host things on arweave, so this fee will be a one time thing that should decrease in amount over time (as technology improves)
 5. Your game should appear as the most recent game in the arcade :)
 
-** I accidentally added the ability to create many arcades, so there is the possibility of arcades being genre specific or whatever is desired.
+**I accidentally added the ability to create many arcades, so there is the possibility of arcades being genre specific or whatever is desired.
 
 
 ## Collecting Funds Won in the Arcade
@@ -77,4 +77,4 @@ Now for the twist.  To make things a bit interesting, every play of the arcade m
 
 - Phantom
 
-* If there are any other wallets that should be added please leave me a message and I'll work to add other wallet supports.
+*If there are any other wallets that should be added please leave me a message and I'll work to add other wallet supports.
