@@ -1,0 +1,2184 @@
+{
+	"version": "0.1.0",
+	"name": "arcade",
+	"instructions": [
+	  {
+		"name": "initialize",
+		"accounts": [],
+		"args": []
+	  },
+	  {
+		"name": "initializeArcade",
+		"docs": [
+		  "This function initializes the arcade (i.e. creates the arcade the games will exist on)",
+		  "",
+		  "Currently, I think there will only be one arcade, however it may be useful later to have the ability to have multiple arcades",
+		  "so this will exist for those possibilities."
+		],
+		"accounts": [
+		  {
+			"name": "arcadeAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "genesisGameAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "authority",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "createGame",
+		"docs": [
+		  "This function should handel the creation of a new game/arcade machine.",
+		  "",
+		  "Currently, I think that as games are added they will be added to the front part of the queue",
+		  "so users will see the newest games.  I don't really want a popularity contest so I'm thinking",
+		  "this is the best way to do this.",
+		  "",
+		  "NOTE: I need to create a webgl build extension/add-on that creates a game wallet for games that",
+		  "are to be added to the arcade.  Then I need to pass that wallet address into here to ensure the games",
+		  "get their money."
+		],
+		"accounts": [
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "arcadeAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "mostRecentGameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "owner",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": [
+		  {
+			"name": "title",
+			"type": "string"
+		  },
+		  {
+			"name": "webGlHash",
+			"type": "string"
+		  },
+		  {
+			"name": "gameArtHash",
+			"type": "string"
+		  },
+		  {
+			"name": "numPlayers",
+			"type": "u8"
+		  },
+		  {
+			"name": "gameType",
+			"type": "u8"
+		  }
+		]
+	  },
+	  {
+		"name": "deleteGame",
+		"docs": [
+		  "This function deletes a game, while making sure that the person deleting the machine/game is",
+		  "the person who owns it.  I would like anyone to upload whatever they want onto the arcade which",
+		  "may come back to bite me, but I think this is the best way to promote an open space."
+		],
+		"accounts": [
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "youngerGame",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "olderGame",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "owner",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "deleteMostRecentGame",
+		"docs": [
+		  "This game deletes the most recent game.",
+		  "",
+		  "I'm going to be completely honest, I think I'm going to delete this and instead make the arcade a",
+		  "circular linked list, but this is here for now."
+		],
+		"accounts": [
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "arcadeState",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "olderGame",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "owner",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "initOnePlayerGameQueue",
+		"docs": [
+		  "This function initializes the game queues of a one player normal game",
+		  "",
+		  "This function will require the user to pay for the created accounts as well as an additional $0.25",
+		  "to fund the game account."
+		],
+		"accounts": [
+		  {
+			"name": "playerAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameQueueAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "payer",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "joinOnePlayerGameQueue",
+		"docs": [
+		  "This function allows a user to join the queue of a 1 player game"
+		],
+		"accounts": [
+		  {
+			"name": "playerAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "lastPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "payer",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "advanceOnePlayerGameQueue",
+		"docs": [
+		  "This function advances a one player game (i.e. makes the next player the current player etc.)"
+		],
+		"accounts": [
+		  {
+			"name": "currentPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "finishOnePlayerGameQueue",
+		"docs": [
+		  "This function destroys the queues associated with the one player game to save space and resources.",
+		  "",
+		  "The credits associated with these queues is then credited to the game account."
+		],
+		"accounts": [
+		  {
+			"name": "currentPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "initTwoPlayerGameQueue",
+		"docs": [
+		  "This function initializes the game queues for a two player game.",
+		  "",
+		  "The person initializing the queues will pay $0.25 + the amount it costs to create the queues."
+		],
+		"accounts": [
+		  {
+			"name": "playerAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "payer",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "joinTwoPlayerGameQueue",
+		"docs": [
+		  "This function allows a user to join a two player game queue"
+		],
+		"accounts": [
+		  {
+			"name": "playerAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "q1LastPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "q2LastPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "payer",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "advanceTwoPlayerGameQueue",
+		"docs": [
+		  "Advances a 2 player game queue.",
+		  "",
+		  "E F ->",
+		  "C D -> E F ->",
+		  "A B -> C D -> E F"
+		],
+		"accounts": [
+		  {
+			"name": "playerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "advanceTwoPlayerKingOfHillQueue",
+		"docs": [
+		  "Advances a two player king of the hill game queue",
+		  "",
+		  "E F -> E   -> E   ->     ->     ->",
+		  "C D -> C F -> C   ->   E ->     ->",
+		  "A B -> A D -> A F -> A C -> A E -> A"
+		],
+		"accounts": [
+		  {
+			"name": "winningPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "finishTwoPlayerGameQueue",
+		"docs": [
+		  "Finishes a 2 player game by resetting the game queue pointers."
+		],
+		"accounts": [
+		  {
+			"name": "playerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "finishTwoPlayerKingOfHillQueue",
+		"docs": [
+		  "Finishes a 2 player king of the hill game by resetting the game queue pointers."
+		],
+		"accounts": [
+		  {
+			"name": "losingPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "initThreePlayerGameQueue",
+		"docs": [
+		  "Initializes the game queues of a 3 player game."
+		],
+		"accounts": [
+		  {
+			"name": "playerAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "payer",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "joinThreePlayerGameQueue",
+		"docs": [
+		  "Joins a player into a normal 3 player game queue"
+		],
+		"accounts": [
+		  {
+			"name": "playerAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "q1LastPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "q2LastPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "q3LastPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "payer",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "advanceThreePlayerGameQueue",
+		"docs": [
+		  "Advances the game queue for a normal 3 player game",
+		  "",
+		  "G H I ->       ->",
+		  "D E F -> G H I ->",
+		  "A B C -> D E F -> G H I"
+		],
+		"accounts": [
+		  {
+			"name": "playerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "advanceThreePlayerKingOfHillQueue",
+		"docs": [
+		  "Advances the game queues for a 3 player king of the hill game.",
+		  "",
+		  "7 8 9 ->     9  |  5     ->",
+		  "4 5 6 -> 7 8 6  |  4     -> 5",
+		  "1 2 3 -> 4 5 3  |  1 2 3 -> 4 _ 3",
+		  "x x o           |  x x o"
+		],
+		"accounts": [
+		  {
+			"name": "winningPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "finishThreePlayerGameQueue",
+		"docs": [
+		  "Finishes the game queues for a 3 player game by resetting their pointers."
+		],
+		"accounts": [
+		  {
+			"name": "playerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "finishThreePlayerKingOfHillQueue",
+		"docs": [
+		  "Finishes the game queues for a 3 player king of the hill game by resetting their pointers."
+		],
+		"accounts": [
+		  {
+			"name": "losingPlayerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "initFourPlayerGameQueue",
+		"docs": [
+		  "Initializes the game queues for a 4 player game."
+		],
+		"accounts": [
+		  {
+			"name": "playerAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameQueueAccountFour",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "payer",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "joinFourPlayerGameQueue",
+		"docs": [
+		  "Joins a player in to a game queue for a normal 4 player game.",
+		  "",
+		  "Players are added from left to right to keep order."
+		],
+		"accounts": [
+		  {
+			"name": "playerAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "q1LastPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "q2LastPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "q3LastPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "q4LastPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountFour",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "payer",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "advanceFourPlayerGameQueue",
+		"docs": [
+		  "Advances a normal 4 player game queue",
+		  "",
+		  "I J K L ->         ->",
+		  "E F G H -> I J K L ->",
+		  "A B C D -> E F G H -> I J K L"
+		],
+		"accounts": [
+		  {
+			"name": "playerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerFour",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountFour",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "advanceFourPlayerKingOfHillQueue",
+		"docs": [
+		  "Advances a 4 player king of the hill game.",
+		  "",
+		  "I J K L -> I       -> I       ->         ->         ->",
+		  "E F G H -> E J K L -> E       ->   I     ->         ->",
+		  "A B C D -> A F G H -> A J K L -> A E _ _ -> A I _ _ -> A"
+		],
+		"accounts": [
+		  {
+			"name": "winningPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayerThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountFour",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "advanceTeamKingOfHillQueue",
+		"docs": [
+		  "We have given up on making the queue flow smoothly, basically you will register in queue for a specific team and wait for the people in front of",
+		  "you to fail.",
+		  "",
+		  "TODO: Maybe we can fix the queue advancing but it honestly looks quite difficult."
+		],
+		"accounts": [
+		  {
+			"name": "winningPlayerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "winningPlayerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountFour",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "finishFourPlayerGameQueue",
+		"docs": [
+		  "Finishes a normal 4 player game queue by resetting the queue pointers."
+		],
+		"accounts": [
+		  {
+			"name": "playerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "playerFour",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountFour",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "finishFourPlayerKingOfHillQueue",
+		"docs": [
+		  "Finishes a 4 player king of the hill queue by resetting the queue pointers."
+		],
+		"accounts": [
+		  {
+			"name": "losingPlayerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayerThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountFour",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "finishTeamKingOfHillQueue",
+		"docs": [
+		  "Finishes a team king of the hill queue by resetting the queue pointers."
+		],
+		"accounts": [
+		  {
+			"name": "losingPlayerOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "losingPlayerTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountOne",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountTwo",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountThree",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccountFour",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "joinKingOfHillGameQueue",
+		"docs": [
+		  "Joins a specific queue for a king of the hill game."
+		],
+		"accounts": [
+		  {
+			"name": "playerAccount",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "lastPlayer",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameQueueAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "payer",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "updateLeaderboard",
+		"docs": [
+		  "Whenever a game is played the game should make a call to the update leaderboard function to see if the leaderboard",
+		  "should be updated."
+		],
+		"accounts": [
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "authority",
+			"isMut": false,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": [
+		  {
+			"name": "playerName",
+			"type": "string"
+		  },
+		  {
+			"name": "score",
+			"type": "u128"
+		  },
+		  {
+			"name": "walletKey",
+			"type": "publicKey"
+		  }
+		]
+	  },
+	  {
+		"name": "paybackFunds",
+		"docs": [
+		  "Whenever the owner of a game wants to payout the funds they will call this function"
+		],
+		"accounts": [
+		  {
+			"name": "playerOnePot",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "playerTwoPot",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "playerThreePot",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "arcadeAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "owner",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "cashOutPot",
+		"docs": [
+		  "Whenever a user wants to cash out their pots they can call this function to do so."
+		],
+		"accounts": [
+		  {
+			"name": "gamePotAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "previousPotAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "winner",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "cashOutMostRecentPot",
+		"docs": [
+		  "Whenever a user wants to cash out their pots they can call this function to do so if that pot is the first one."
+		],
+		"accounts": [
+		  {
+			"name": "gamePotAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "arcadeState",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "winner",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": []
+	  },
+	  {
+		"name": "refillGameFunds",
+		"accounts": [
+		  {
+			"name": "gameAccount",
+			"isMut": true,
+			"isSigner": false
+		  },
+		  {
+			"name": "payer",
+			"isMut": true,
+			"isSigner": true
+		  },
+		  {
+			"name": "systemProgram",
+			"isMut": false,
+			"isSigner": false
+		  }
+		],
+		"args": [
+		  {
+			"name": "lamports",
+			"type": "u64"
+		  }
+		]
+	  }
+	],
+	"accounts": [
+	  {
+		"name": "ArcadeState",
+		"docs": [
+		  "The ArcadeState is the account that points to the most current game uploaded to the arcade.",
+		  "",
+		  "I will probably end up paying rent for this to make sure it never dissappears, but it should honestly be incredibly cheap because the rent-exempt",
+		  "minimum for this size is currently 0.00133632, which is about $0.044232."
+		],
+		"type": {
+		  "kind": "struct",
+		  "fields": [
+			{
+			  "name": "mostRecentGameKey",
+			  "type": "publicKey"
+			},
+			{
+			  "name": "mostRecentGamePotKey",
+			  "type": {
+				"option": "publicKey"
+			  }
+			},
+			{
+			  "name": "authority",
+			  "type": "publicKey"
+			}
+		  ]
+		}
+	  },
+	  {
+		"name": "Game",
+		"docs": [
+		  "A game is the on-chain block that contains all important information about a game.",
+		  "",
+		  "NOTE: All actual game data and game art will be stored on arweave to keep the gas prices down.  The only unintended consequence of this",
+		  "is that games may not be modified after their upload, however we can delete a game if the person initializing the delete has the same",
+		  "wallet public key as the owner_wallet.",
+		  "",
+		  "Game Type:",
+		  "0 -> Normal",
+		  "1 -> King of the Hill",
+		  "2 -> Team King of the Hill",
+		  "3 -> 18+ Normal",
+		  "4 -> 18+ King of the Hill",
+		  "5 -> 18+ Team King of the Hill"
+		],
+		"type": {
+		  "kind": "struct",
+		  "fields": [
+			{
+			  "name": "title",
+			  "type": "string"
+			},
+			{
+			  "name": "webGlHash",
+			  "type": "string"
+			},
+			{
+			  "name": "gameArtHash",
+			  "type": "string"
+			},
+			{
+			  "name": "maxPlayers",
+			  "type": "u8"
+			},
+			{
+			  "name": "gameType",
+			  "type": "u8"
+			},
+			{
+			  "name": "strikes",
+			  "type": "u8"
+			},
+			{
+			  "name": "leaderboard",
+			  "type": {
+				"defined": "Leaderboard"
+			  }
+			},
+			{
+			  "name": "gameQueues",
+			  "type": {
+				"vec": "publicKey"
+			  }
+			},
+			{
+			  "name": "youngerGameKey",
+			  "type": "publicKey"
+			},
+			{
+			  "name": "olderGameKey",
+			  "type": "publicKey"
+			},
+			{
+			  "name": "ownerWallet",
+			  "type": "publicKey"
+			}
+		  ]
+		}
+	  },
+	  {
+		"name": "GameQueue",
+		"docs": [
+		  "The game queue is a game's player queue.  It seems that this would make the game too big, so it gets its own account.",
+		  "",
+		  "size (GameQueue) = size(Pubkey) + 2 * size(Option<Pubkey>) = 32 + 66 = 98 Bytes"
+		],
+		"type": {
+		  "kind": "struct",
+		  "fields": [
+			{
+			  "name": "game",
+			  "type": "publicKey"
+			},
+			{
+			  "name": "currentPlayer",
+			  "type": "publicKey"
+			},
+			{
+			  "name": "lastPlayer",
+			  "type": "publicKey"
+			},
+			{
+			  "name": "numPlayersInQueue",
+			  "type": "u128"
+			}
+		  ]
+		}
+	  },
+	  {
+		"name": "GamePot",
+		"docs": [
+		  "The game pot is a struct created whenever a game is paying out where the funds for a player is stored.",
+		  "",
+		  "size (GamePot) = 2 * size(Pubkey) + size(Option<Pubkey>) = 2 * 32 + 33 = 97 Bytes"
+		],
+		"type": {
+		  "kind": "struct",
+		  "fields": [
+			{
+			  "name": "game",
+			  "type": "publicKey"
+			},
+			{
+			  "name": "winnerWallet",
+			  "type": "publicKey"
+			},
+			{
+			  "name": "nextGamePot",
+			  "type": {
+				"option": "publicKey"
+			  }
+			}
+		  ]
+		}
+	  },
+	  {
+		"name": "Player",
+		"docs": [
+		  "The on chain reference for players to represent a player in a game's queue.",
+		  "",
+		  "size(Player) = 1 * size(Pubkey) + 1 * size(Option<Pubkey>) = 32 + 33 = 65 Bytes"
+		],
+		"type": {
+		  "kind": "struct",
+		  "fields": [
+			{
+			  "name": "walletKey",
+			  "type": "publicKey"
+			},
+			{
+			  "name": "nextPlayer",
+			  "type": {
+				"option": "publicKey"
+			  }
+			}
+		  ]
+		}
+	  }
+	],
+	"types": [
+	  {
+		"name": "Leaderboard",
+		"docs": [
+		  "The Leaderboard organizes the different player's places by score.",
+		  "size(Leaderboard) = 3 * size(Pace) = 3 * 60 = 180 Bytes"
+		],
+		"type": {
+		  "kind": "struct",
+		  "fields": [
+			{
+			  "name": "firstPlace",
+			  "type": {
+				"defined": "Place"
+			  }
+			},
+			{
+			  "name": "secondPlace",
+			  "type": {
+				"defined": "Place"
+			  }
+			},
+			{
+			  "name": "thirdPlace",
+			  "type": {
+				"defined": "Place"
+			  }
+			}
+		  ]
+		}
+	  },
+	  {
+		"name": "Place",
+		"docs": [
+		  "A place is a player's place on the leaderboard.",
+		  "size(Place) = 3*size(char) + size(Pubkey) + size(u128) = 3*4 + 32 + 16 = 12 + 32 + 16 = 60 Bytes"
+		],
+		"type": {
+		  "kind": "struct",
+		  "fields": [
+			{
+			  "name": "name",
+			  "type": "string"
+			},
+			{
+			  "name": "walletKey",
+			  "type": "publicKey"
+			},
+			{
+			  "name": "score",
+			  "type": "u128"
+			}
+		  ]
+		}
+	  }
+	],
+	"events": [
+	  {
+		"name": "GameEvent",
+		"fields": [
+		  {
+			"name": "label",
+			"type": "string",
+			"index": false
+		  },
+		  {
+			"name": "gameId",
+			"type": "publicKey",
+			"index": false
+		  },
+		  {
+			"name": "moreRecentGameId",
+			"type": {
+			  "option": "publicKey"
+			},
+			"index": false
+		  },
+		  {
+			"name": "lessRecentGameId",
+			"type": {
+			  "option": "publicKey"
+			},
+			"index": false
+		  }
+		]
+	  },
+	  {
+		"name": "LeaderboardEvent",
+		"fields": [
+		  {
+			"name": "gameId",
+			"type": "publicKey",
+			"index": false
+		  },
+		  {
+			"name": "playerName",
+			"type": "string",
+			"index": false
+		  },
+		  {
+			"name": "firstPlaceName",
+			"type": "string",
+			"index": false
+		  },
+		  {
+			"name": "secondPlaceName",
+			"type": "string",
+			"index": false
+		  },
+		  {
+			"name": "thirdPlaceName",
+			"type": "string",
+			"index": false
+		  }
+		]
+	  },
+	  {
+		"name": "NewQueueEvent",
+		"fields": [
+		  {
+			"name": "gameId",
+			"type": "publicKey",
+			"index": false
+		  },
+		  {
+			"name": "queueIds",
+			"type": {
+			  "vec": "publicKey"
+			},
+			"index": false
+		  },
+		  {
+			"name": "queueNums",
+			"type": "bytes",
+			"index": false
+		  },
+		  {
+			"name": "newPlayerIds",
+			"type": {
+			  "vec": {
+				"option": "publicKey"
+			  }
+			},
+			"index": false
+		  },
+		  {
+			"name": "numPlayers",
+			"type": {
+			  "vec": "u128"
+			},
+			"index": false
+		  }
+		]
+	  },
+	  {
+		"name": "JoinQueueEvent",
+		"fields": [
+		  {
+			"name": "gameId",
+			"type": "publicKey",
+			"index": false
+		  },
+		  {
+			"name": "queueId",
+			"type": "publicKey",
+			"index": false
+		  },
+		  {
+			"name": "queueNum",
+			"type": "u8",
+			"index": false
+		  },
+		  {
+			"name": "lastPlayer",
+			"type": "publicKey",
+			"index": false
+		  },
+		  {
+			"name": "numPlayers",
+			"type": "u128",
+			"index": false
+		  }
+		]
+	  },
+	  {
+		"name": "AdvanceQueueEvent",
+		"fields": [
+		  {
+			"name": "gameId",
+			"type": "publicKey",
+			"index": false
+		  },
+		  {
+			"name": "queueIds",
+			"type": {
+			  "vec": "publicKey"
+			},
+			"index": false
+		  },
+		  {
+			"name": "queueNums",
+			"type": "bytes",
+			"index": false
+		  },
+		  {
+			"name": "finishedPlayers",
+			"type": {
+			  "vec": {
+				"option": "publicKey"
+			  }
+			},
+			"index": false
+		  },
+		  {
+			"name": "newPlayers",
+			"type": {
+			  "vec": {
+				"option": "publicKey"
+			  }
+			},
+			"index": false
+		  },
+		  {
+			"name": "numPlayers",
+			"type": {
+			  "vec": "u128"
+			},
+			"index": false
+		  }
+		]
+	  },
+	  {
+		"name": "FinishQueueEvent",
+		"fields": [
+		  {
+			"name": "gameId",
+			"type": "publicKey",
+			"index": false
+		  }
+		]
+	  },
+	  {
+		"name": "PayoutEvent",
+		"fields": [
+		  {
+			"name": "gameName",
+			"type": "string",
+			"index": false
+		  },
+		  {
+			"name": "arcadeId",
+			"type": "publicKey",
+			"index": false
+		  },
+		  {
+			"name": "playerOnePotKey",
+			"type": "publicKey",
+			"index": false
+		  },
+		  {
+			"name": "playerTwoPotKey",
+			"type": "publicKey",
+			"index": false
+		  },
+		  {
+			"name": "playerThreePotKey",
+			"type": "publicKey",
+			"index": false
+		  },
+		  {
+			"name": "playerOneName",
+			"type": "string",
+			"index": false
+		  },
+		  {
+			"name": "playerTwoName",
+			"type": "string",
+			"index": false
+		  },
+		  {
+			"name": "playerThreeName",
+			"type": "string",
+			"index": false
+		  }
+		]
+	  }
+	],
+	"errors": [
+	  {
+		"code": 6000,
+		"name": "CannotDeleteUnownedGame",
+		"msg": "You cannot delete another user's games.  SHAME ON YOU"
+	  },
+	  {
+		"code": 6001,
+		"name": "IllegalName",
+		"msg": "You cannot have a name that is more than 3 characters - or 0 characters"
+	  },
+	  {
+		"code": 6002,
+		"name": "GameAccountNotProvidedToDelete",
+		"msg": "If you are going to delete a game, make sure to specify the correct game before and after it"
+	  },
+	  {
+		"code": 6003,
+		"name": "AlreadyInitializedGameQueue",
+		"msg": "You cannot create a game queue for a game that already has a game queue"
+	  },
+	  {
+		"code": 6004,
+		"name": "GameQueueNotEmpty",
+		"msg": "You cannot join an empty game queue if it is not empty"
+	  },
+	  {
+		"code": 6005,
+		"name": "GameQueueDoesNotExist",
+		"msg": "The game queue given does not exist in the game queues"
+	  },
+	  {
+		"code": 6006,
+		"name": "CannotAdvanceGameQueueIncorrectPlayers",
+		"msg": "Cannot advance game queue with incorrect players provided"
+	  },
+	  {
+		"code": 6007,
+		"name": "UnknownTeamQueueOrganization",
+		"msg": "Unknown team queue organization please restructure and try again"
+	  },
+	  {
+		"code": 6008,
+		"name": "CannotAdvanceGameQueueIncorrectGameKey",
+		"msg": "Unknown game key, this is probably the wrong game queue to advance for this game"
+	  },
+	  {
+		"code": 6009,
+		"name": "CannotAdvanceGameQueueWrongMaxPlayers",
+		"msg": "Cannot advance a game queue with different number of players with this method"
+	  },
+	  {
+		"code": 6010,
+		"name": "CannotAdvanceGameQueueWrongGameType",
+		"msg": "Cannot advance a game queue with different type using this method"
+	  },
+	  {
+		"code": 6011,
+		"name": "CannotAdvanceGameQueueWrongGameQueue",
+		"msg": "Cannot advance a game queue with different game queues"
+	  },
+	  {
+		"code": 6012,
+		"name": "TestError",
+		"msg": "TEST ERROR"
+	  },
+	  {
+		"code": 6013,
+		"name": "CannotGetRentExemptAmount",
+		"msg": "Unable to get rent exempt amount"
+	  },
+	  {
+		"code": 6014,
+		"name": "InsufficientFundsForPayout",
+		"msg": "Insufficient funds to payout"
+	  },
+	  {
+		"code": 6015,
+		"name": "InsufficientFundsPotOne",
+		"msg": "Insufficient funds to payout to pot 1"
+	  },
+	  {
+		"code": 6016,
+		"name": "InsufficientFundsPotTwo",
+		"msg": "Insufficient funds to payout to pot 2"
+	  },
+	  {
+		"code": 6017,
+		"name": "InsufficientFundsPotThree",
+		"msg": "Insufficient funds to payout to pot 3"
+	  }
+	],
+	"metadata": {
+	  "address": "Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS"
+	}
+  }
