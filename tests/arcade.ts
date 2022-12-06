@@ -1,5 +1,6 @@
 import * as anchor from "@project-serum/anchor";
 import { Program } from "@project-serum/anchor";
+import { BN } from "bn.js";
 import { assert } from "chai";
 import { Arcade } from "../target/types/arcade";
 
@@ -14,6 +15,7 @@ const { advanceOnePlayerQueue, advanceTwoPlayerQueue, advanceTwoPlayerKingOfHill
         advanceFourPlayerQueue, advanceFourPlayerKingOfHillQueue, advanceTeamKingOfHillQueue } = require("./functions/advanceQueue.js");
 const { finishOnePlayerGameQueue, finishTwoPlayerGameQueue, finishTwoPlayerKingOfHillQueue, finishThreePlayerGameQueue,
         finishThreePlayerKingOfHillQueue, finishFourPlayerGameQueue, finishFourPlayerKingOfHillQueue, finishTeamKingOfHillQueue } = require("./functions/finishQueue.js");
+const { paybackFunds, cashOutPot, cashOutMostRecentPot, refillGameFunds } = require("./functions/payback.js");
 
 describe("arcade", () => {
   // Configure the client to use the local cluster.
@@ -115,75 +117,6 @@ describe("arcade", () => {
 
     assert.equal(updatedEarlierGame.olderGameKey.toString(), gameAccount1.publicKey.toString());
     assert.equal(updatedLaterGame.youngerGameKey.toString(), gameAccount3.publicKey.toString());
-  });
-
-  it("Updates first place in game leaderboard", async () => {
-    // Create an arcade
-    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
-
-    // Set game player and type constant parameters
-    const numPlayers = 1;
-    const gameType = 0;
-
-    // Create 1 game for the arcade
-    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount, numPlayers, gameType);
-    
-    // Create first place player
-    const playerName = "ABC";
-    const score = new anchor.BN(2048);
-    const walletKey = anchor.web3.Keypair.generate();
-
-    const { updatedGame } = await updateLeaderboard(program, provider, gameAccount, playerName, score, walletKey);
-
-    assert.equal(updatedGame.leaderboard.firstPlace.name, playerName);
-    assert.equal(updatedGame.leaderboard.firstPlace.walletKey.toString(), walletKey.publicKey.toString());
-    assert.equal(updatedGame.leaderboard.firstPlace.score.toNumber(), score.toNumber());
-  });
-
-  it("Updates second place in game leaderboard", async () => {
-    // Create an arcade
-    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
-
-    // Set game player and type constant parameters
-    const numPlayers = 1;
-    const gameType = 0;
-
-    // Create 1 game for the arcade
-    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount, numPlayers, gameType);
-
-    // Create second place player
-    const playerName = "ABC";
-    const score = new anchor.BN(75);
-    const walletKey = anchor.web3.Keypair.generate();
-
-    const { updatedGame } = await updateLeaderboard(program, provider, gameAccount, playerName, score, walletKey);
-
-    assert.equal(updatedGame.leaderboard.secondPlace.name, playerName);
-    assert.equal(updatedGame.leaderboard.secondPlace.walletKey.toString(), walletKey.publicKey.toString());
-    assert.equal(updatedGame.leaderboard.secondPlace.score.toNumber(), score.toNumber());
-  });
-
-  it("Updates third place in game leaderboard", async () => {
-    // Create an arcade
-    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
-
-    // Set game player and type constant parameters
-    const numPlayers = 1;
-    const gameType = 0;
-
-    // Create 1 game for the arcade
-    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount, numPlayers, gameType);
-
-    // Create third place player
-    const playerName = "ABC";
-    const score = new anchor.BN(30);
-    const walletKey = anchor.web3.Keypair.generate();
-
-    const { updatedGame } = await updateLeaderboard(program, provider, gameAccount, playerName, score, walletKey);
-
-    assert.equal(updatedGame.leaderboard.thirdPlace.name, playerName);
-    assert.equal(updatedGame.leaderboard.thirdPlace.walletKey.toString(), walletKey.publicKey.toString());
-    assert.equal(updatedGame.leaderboard.thirdPlace.score.toNumber(), score.toNumber());
   });
 
   // 2 ->   ->   ->
@@ -2741,5 +2674,96 @@ describe("arcade", () => {
     assert.equal(g26.gameQueues[1].toString(), gameAccount.publicKey.toString());
     assert.equal(g26.gameQueues[2].toString(), gameAccount.publicKey.toString());
     assert.equal(g26.gameQueues[3].toString(), gameAccount.publicKey.toString());
+  });
+
+  it("pays back funds correctly", async () => {
+    // Create an arcade
+    const { arcadeAccount, genesisGameAccount } = await makeArcade(program, provider);
+
+    // Set game player and type constant parameters
+    const numPlayers = 1;
+    const gameType = 0;
+
+    // Create 1 game for the arcade
+    const { gameAccount } = await makeGame(program, provider, arcadeAccount, genesisGameAccount, numPlayers, gameType);
+
+    // Create first place player
+    const playerOneAccount = anchor.web3.Keypair.generate();
+    const playerName = "NBW";
+    const score = new anchor.BN(2048);
+    const playerOneWallet = new anchor.Wallet(playerOneAccount);
+
+    // Create second place player
+    const playerTwoAccount = anchor.web3.Keypair.generate();
+    const playerName2 = "BSW";
+    const score2 = new anchor.BN(1000);
+    const playerTwoWallet = new anchor.Wallet(playerTwoAccount);
+
+    // Create third place player
+    const playerThreeAccount = anchor.web3.Keypair.generate();
+    const playerName3 = "JCW";
+    const score3 = new anchor.BN(500);
+    const playerThreeWallet = new anchor.Wallet(playerThreeAccount);
+
+    const { updatedGame: g0 } = await updateLeaderboard(program, provider, gameAccount, playerName, score, playerOneWallet);
+
+    assert.equal(g0.leaderboard.firstPlace.name, playerName);
+    assert.equal(g0.leaderboard.firstPlace.walletKey.toString(), playerOneWallet.publicKey.toString());
+    assert.equal(g0.leaderboard.firstPlace.score.toNumber(), score.toNumber());
+
+    const { updatedGame: g1 } = await updateLeaderboard(program, provider, gameAccount, playerName2, score2, playerTwoWallet);
+
+    assert.equal(g1.leaderboard.secondPlace.name, playerName2);
+    assert.equal(g1.leaderboard.secondPlace.walletKey.toString(), playerTwoWallet.publicKey.toString());
+    assert.equal(g1.leaderboard.secondPlace.score.toNumber(), score2.toNumber());
+
+    const { updatedGame: g2 } = await updateLeaderboard(program, provider, gameAccount, playerName3, score3, playerThreeWallet);
+
+    assert.equal(g2.leaderboard.thirdPlace.name, playerName3);
+    assert.equal(g2.leaderboard.thirdPlace.walletKey.toString(), playerThreeWallet.publicKey.toString());
+    assert.equal(g2.leaderboard.thirdPlace.score.toNumber(), score3.toNumber());
+
+    const gameInfo0 = await program.account.game.getAccountInfo(gameAccount.publicKey);
+    await refillGameFunds(program, provider, gameAccount, new anchor.BN(1000000000));
+    const gameInfo = await program.account.game.getAccountInfo(gameAccount.publicKey);
+    assert.equal(gameInfo0.lamports + 1000000000, gameInfo.lamports);
+
+    const { playerOnePotAccount, playerTwoPotAccount, playerThreePotAccount } = await paybackFunds(program, provider, gameAccount, arcadeAccount);
+
+    const pot1 = await program.account.gamePot.fetch(playerOnePotAccount.publicKey);
+    const pot2 = await program.account.gamePot.fetch(playerTwoPotAccount.publicKey);
+    const pot3 = await program.account.gamePot.fetch(playerThreePotAccount.publicKey);
+    const pot1Info = await program.account.gamePot.getAccountInfo(playerOnePotAccount.publicKey);
+    const pot2Info = await program.account.gamePot.getAccountInfo(playerTwoPotAccount.publicKey);
+    const pot3Info = await program.account.gamePot.getAccountInfo(playerThreePotAccount.publicKey);
+    const gameInfo1 = await program.account.game.getAccountInfo(gameAccount.publicKey);
+
+    assert.equal(pot1.game.toString(), gameAccount.publicKey.toString());
+    assert.equal(pot2.game.toString(), gameAccount.publicKey.toString());
+    assert.equal(pot3.game.toString(), gameAccount.publicKey.toString());
+    assert.equal(pot1.winnerWallet.toString(), playerOneWallet.publicKey.toString());
+    assert.equal(pot2.winnerWallet.toString(), playerTwoWallet.publicKey.toString());
+    assert.equal(pot3.winnerWallet.toString(), playerThreeWallet.publicKey.toString());
+    assert.equal(pot1.nextGamePot.toString(), playerTwoPotAccount.publicKey.toString());
+    assert.equal(pot2.nextGamePot.toString(), playerThreePotAccount.publicKey.toString());
+    assert.equal(pot3.nextGamePot, null);
+    assert.equal(pot1Info.lamports, 287335965);
+    assert.equal(pot2Info.lamports, 144478822);
+    assert.equal(pot3Info.lamports, 73050251);
+    assert.equal(gameInfo1.lamports, 18896402);
+
+    await cashOutPot(program, playerThreeAccount, playerThreePotAccount, playerTwoPotAccount);
+
+    const pot21 = await program.account.gamePot.fetch(playerTwoPotAccount.publicKey);
+
+    assert.equal(pot21.nextGamePot, null);
+
+    await cashOutPot(program, playerTwoAccount, playerTwoPotAccount, playerOnePotAccount);
+
+    const pot12 = await program.account.gamePot.fetch(playerOnePotAccount.publicKey);
+
+    assert.equal(pot12.nextGamePot, null);
+
+    await cashOutMostRecentPot(program, playerOneAccount, arcadeAccount, playerOnePotAccount);
   });
 });

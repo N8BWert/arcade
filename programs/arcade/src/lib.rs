@@ -32,6 +32,7 @@ pub mod arcade {
         // Set up the arcade state.
         arcade_account.authority = authority.key();
         arcade_account.most_recent_game_key = genesis_game_account.key();
+        arcade_account.most_recent_game_pot_key = None;
 
         // If everything went well return Ok.
         Ok(())
@@ -1752,6 +1753,120 @@ pub mod arcade {
 
         Ok(())
     }
+
+    /// Whenever the owner of a game wants to payout the funds they will call this function
+    pub fn payback_funds(ctx: Context<PaybackGameFunds>) -> Result<()> {
+        let player_one_pot = &mut ctx.accounts.player_one_pot;
+        let player_two_pot = &mut ctx.accounts.player_two_pot;
+        let player_three_pot = &mut ctx.accounts.player_three_pot;
+        let arcade_account = &mut ctx.accounts.arcade_account;
+        let game_account = &mut ctx.accounts.game_account;
+        let owner_account = &mut ctx.accounts.owner;
+
+        // Calculate amount SOL to give to game owner, top player, second player, and third player
+        let game_lamports = game_account.to_account_info().lamports();
+        let rent_calculator = Rent::default();
+        let minimum_game_rent = rent_calculator.minimum_balance(Game::MAX_SIZE + 8);
+        let minimum_pot_rent = rent_calculator.minimum_balance(GamePot::MAX_SIZE + 8);
+        let distribution_lamports = game_lamports - minimum_game_rent;
+        let owner_lamports = (distribution_lamports / 2) as u64;
+        let player_one_lamports= (owner_lamports * 4 / 7) as u64;
+        let player_two_lamports = (owner_lamports * 2 / 7) as u64;
+        let player_three_lamports = (owner_lamports / 7) as u64;
+        
+        let paying_lamports = owner_lamports + player_one_lamports + player_three_lamports;
+        if minimum_game_rent > game_lamports - paying_lamports {
+            return Err(Errors::InsufficientFundsForPayout.into());
+        } else if minimum_pot_rent > player_one_lamports {
+            return Err(Errors::InsufficientFundsPotOne.into());
+        } else if minimum_pot_rent > player_two_lamports {
+            return Err(Errors::InsufficientFundsPotTwo.into());
+        } else if minimum_pot_rent > player_three_lamports {
+            return Err(Errors::InsufficientFundsPotThree.into());
+        }
+
+        **owner_account.to_account_info().lamports.borrow_mut() += owner_lamports;
+        **player_one_pot.to_account_info().lamports.borrow_mut() += player_one_lamports;
+        **player_two_pot.to_account_info().lamports.borrow_mut() += player_two_lamports;
+        **player_three_pot.to_account_info().lamports.borrow_mut() += player_three_lamports;
+        **game_account.to_account_info().lamports.borrow_mut() -= owner_lamports + player_one_lamports + player_two_lamports + player_three_lamports;
+
+        player_one_pot.game = game_account.key();
+        player_one_pot.winner_wallet = game_account.leaderboard.first_place.wallet_key;
+        player_one_pot.next_game_pot = Some(player_two_pot.key());
+
+        player_two_pot.game = game_account.key();
+        player_two_pot.winner_wallet = game_account.leaderboard.second_place.wallet_key;
+        player_two_pot.next_game_pot = Some(player_three_pot.key());
+
+        player_three_pot.game = game_account.key();
+        player_three_pot.winner_wallet = game_account.leaderboard.third_place.wallet_key;
+        player_three_pot.next_game_pot = arcade_account.most_recent_game_pot_key;
+
+        arcade_account.most_recent_game_pot_key = Some(player_one_pot.key());
+
+        emit!(PayoutEvent {
+            game_name: game_account.title.clone(),
+            arcade_id: arcade_account.key(),
+            player_one_pot_key: player_one_pot.key(),
+            player_two_pot_key: player_two_pot.key(),
+            player_three_pot_key: player_three_pot.key(),
+            player_one_name: game_account.leaderboard.first_place.name.clone(),
+            player_two_name: game_account.leaderboard.second_place.name.clone(),
+            player_three_name: game_account.leaderboard.third_place.name.clone(),
+        });
+
+        let first_place = Place {name: String::from("AAA"), wallet_key: owner_account.key(), score: 100};
+        let second_place = Place {name: String::from("BBB"), wallet_key: owner_account.key(), score: 50};
+        let third_place = Place {name: String::from("CCC"), wallet_key: owner_account.key(), score: 25};
+
+        let leaderboard = Leaderboard {first_place, second_place, third_place};
+
+        game_account.leaderboard = leaderboard;
+
+        Ok(())
+    }
+
+    /// Whenever a user wants to cash out their pots they can call this function to do so.
+    pub fn cash_out_pot(ctx: Context<CashOutPot>) -> Result<()> {
+        let game_pot_account = &mut ctx.accounts.game_pot_account;
+        let previous_pot_account = &mut ctx.accounts.previous_pot_account;
+
+        previous_pot_account.next_game_pot = game_pot_account.next_game_pot;
+
+        Ok(())
+    }
+
+    /// Whenever a user wants to cash out their pots they can call this function to do so if that pot is the first one.
+    pub fn cash_out_most_recent_pot(ctx: Context<CashOutMostRecentPot>) -> Result<()> {
+        let game_pot_account = &mut ctx.accounts.game_pot_account;
+        let arcade_state = &mut ctx.accounts.arcade_state;
+
+        arcade_state.most_recent_game_pot_key = game_pot_account.next_game_pot;
+
+        Ok(())
+    }
+
+    pub fn refill_game_funds(ctx: Context<RefillGameFunds>, lamports: u64) -> ProgramResult {
+        let game_account = &mut ctx.accounts.game_account;
+        let payer = &mut ctx.accounts.payer;
+
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            lamports,
+        );
+
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -2705,6 +2820,66 @@ pub struct JoinKingOfHillGameQueue<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+/// Context used to begin the payback of a games funds to the owner and winners
+pub struct PaybackGameFunds<'info> {
+    #[account(init, payer = owner, space = 8 + GamePot::MAX_SIZE)]
+    pub player_one_pot: Account<'info, GamePot>,
+    #[account(init, payer = owner, space = 8 + GamePot::MAX_SIZE)]
+    pub player_two_pot: Account<'info, GamePot>,
+    #[account(init, payer = owner, space = 8 + GamePot::MAX_SIZE)]
+    pub player_three_pot: Account<'info, GamePot>,
+    #[account(mut, constraint = game_account.owner_wallet == owner.key())]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub arcade_account: Account<'info, ArcadeState>,
+    #[account(mut)]
+    pub owner: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+/// Context used to cash out a game pot to the respective winning player
+pub struct CashOutPot<'info> {
+    #[account(
+        mut,
+        close = winner,
+        constraint = game_pot_account.winner_wallet == winner.key()
+    )]
+    pub game_pot_account: Account<'info, GamePot>,
+    #[account(mut, constraint = previous_pot_account.next_game_pot.unwrap() == game_pot_account.key())]
+    pub previous_pot_account: Account<'info, GamePot>,
+    #[account(mut)]
+    pub winner: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+/// Context used to cash out a game pot to the respective winning player (game pot is the most recent pot)
+pub struct CashOutMostRecentPot<'info> {
+    #[account(
+        mut,
+        close = winner,
+        constraint = game_pot_account.winner_wallet == winner.key()
+    )]
+    pub game_pot_account: Account<'info, GamePot>,
+    #[account(mut, constraint = arcade_state.most_recent_game_pot_key.unwrap() == game_pot_account.key())]
+    pub arcade_state: Account<'info, ArcadeState>,
+    #[account(mut)]
+    pub winner: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+/// Context used to add funds to a game account (could be used for donations or preventing games from going under rent exemption)
+pub struct RefillGameFunds<'info> {
+    #[account(mut)]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 #[account]
 /// The ArcadeState is the account that points to the most current game uploaded to the arcade.
 /// 
@@ -2712,11 +2887,12 @@ pub struct JoinKingOfHillGameQueue<'info> {
 /// minimum for this size is currently 0.00133632, which is about $0.044232.
 pub struct ArcadeState {
     pub most_recent_game_key: Pubkey, // the key of the most recent game to be added to the arcade.
+    pub most_recent_game_pot_key: Option<Pubkey>, // the key of the most recent game pot
     pub authority: Pubkey, // the initializer of the arcade's key (aka my key).
 }
 
 impl ArcadeState {
-    pub const MAX_SIZE: usize = mem::size_of::<Pubkey>() + mem::size_of::<Pubkey>();
+    pub const MAX_SIZE: usize = mem::size_of::<Pubkey>() + mem::size_of::<Pubkey>() + mem::size_of::<Option<Pubkey>>();
 }
 
 #[account]
@@ -2769,6 +2945,20 @@ pub struct GameQueue {
 
 impl GameQueue {
     pub const MAX_SIZE: usize = mem::size_of::<Pubkey>() + (2 * mem::size_of::<Pubkey>()) + mem::size_of::<u128>();
+}
+
+#[account]
+/// The game pot is a struct created whenever a game is paying out where the funds for a player is stored.
+/// 
+/// size (GamePot) = 2 * size(Pubkey) + size(Option<Pubkey>) = 2 * 32 + 33 = 97 Bytes
+pub struct GamePot {
+    pub game: Pubkey,
+    pub winner_wallet: Pubkey,
+    pub next_game_pot: Option<Pubkey>
+}
+
+impl GamePot {
+    pub const MAX_SIZE: usize = 2 * mem::size_of::<Pubkey>() + mem::size_of::<Option<Pubkey>>();
 }
 
 #[account]
@@ -2866,6 +3056,19 @@ pub struct FinishQueueEvent {
     pub game_id: Pubkey,
 }
 
+#[event]
+/// This is the event issued whenever a payout is issued for a game.
+pub struct PayoutEvent {
+    pub game_name: String,
+    pub arcade_id: Pubkey,
+    pub player_one_pot_key: Pubkey,
+    pub player_two_pot_key: Pubkey,
+    pub player_three_pot_key: Pubkey,
+    pub player_one_name: String,
+    pub player_two_name: String,
+    pub player_three_name: String,
+}
+
 #[error_code]
 pub enum Errors {
     #[msg("You cannot delete another user's games.  SHAME ON YOU")]
@@ -2906,4 +3109,19 @@ pub enum Errors {
 
     #[msg("TEST ERROR")]
     TestError,
+
+    #[msg("Unable to get rent exempt amount")]
+    CannotGetRentExemptAmount,
+
+    #[msg("Insufficient funds to payout")]
+    InsufficientFundsForPayout,
+
+    #[msg("Insufficient funds to payout to pot 1")]
+    InsufficientFundsPotOne,
+
+    #[msg("Insufficient funds to payout to pot 2")]
+    InsufficientFundsPotTwo,
+
+    #[msg("Insufficient funds to payout to pot 3")]
+    InsufficientFundsPotThree,
 }
