@@ -1765,13 +1765,31 @@ pub mod arcade {
 
         // Calculate amount SOL to give to game owner, top player, second player, and third player
         let game_lamports = game_account.to_account_info().lamports();
-        let game_rent = Rent::from_account_info(&game_account.to_account_info())?;
-        let minimum_game_rent = game_rent.minimum_balance(Game::MAX_SIZE);
+        let rent_calculator = Rent::default();
+        let minimum_game_rent = rent_calculator.minimum_balance(Game::MAX_SIZE + 8);
+        let minimum_pot_rent = rent_calculator.minimum_balance(GamePot::MAX_SIZE + 8);
         let distribution_lamports = game_lamports - minimum_game_rent;
-        let owner_lamports = ((distribution_lamports / 2) as f64).floor() as u64;
-        let player_one_lamports = ((owner_lamports * 4 / 7) as f64).floor() as u64;
-        let player_two_lamports = ((owner_lamports * 2 / 7) as f64).floor() as u64;
-        let player_three_lamports = ((owner_lamports * 1 / 7) as f64).floor() as u64;
+        let owner_lamports = (distribution_lamports / 2) as u64;
+        let player_one_lamports= (owner_lamports * 4 / 7) as u64;
+        let player_two_lamports = (owner_lamports * 2 / 7) as u64;
+        let player_three_lamports = (owner_lamports / 7) as u64;
+        
+        let paying_lamports = owner_lamports + player_one_lamports + player_three_lamports;
+        if minimum_game_rent > game_lamports - paying_lamports {
+            return Err(Errors::InsufficientFundsForPayout.into());
+        } else if minimum_pot_rent > player_one_lamports {
+            return Err(Errors::InsufficientFundsPotOne.into());
+        } else if minimum_pot_rent > player_two_lamports {
+            return Err(Errors::InsufficientFundsPotTwo.into());
+        } else if minimum_pot_rent > player_three_lamports {
+            return Err(Errors::InsufficientFundsPotThree.into());
+        }
+
+        **owner_account.to_account_info().lamports.borrow_mut() += owner_lamports;
+        **player_one_pot.to_account_info().lamports.borrow_mut() += player_one_lamports;
+        **player_two_pot.to_account_info().lamports.borrow_mut() += player_two_lamports;
+        **player_three_pot.to_account_info().lamports.borrow_mut() += player_three_lamports;
+        **game_account.to_account_info().lamports.borrow_mut() -= owner_lamports + player_one_lamports + player_two_lamports + player_three_lamports;
 
         player_one_pot.game = game_account.key();
         player_one_pot.winner_wallet = game_account.leaderboard.first_place.wallet_key;
@@ -1786,62 +1804,6 @@ pub mod arcade {
         player_three_pot.next_game_pot = arcade_account.most_recent_game_pot_key;
 
         arcade_account.most_recent_game_pot_key = Some(player_one_pot.key());
-
-        let owner_pay_instruction = anchor_lang::solana_program::system_instruction::transfer(
-            &game_account.key(),
-            &owner_account.key(),
-            owner_lamports,
-        );
-
-        let first_place_pay_instruction = anchor_lang::solana_program::system_instruction::transfer(
-            &game_account.key(),
-            &player_one_pot.key(),
-            player_one_lamports,
-        );
-
-        let second_place_pay_instruction = anchor_lang::solana_program::system_instruction::transfer(
-            &game_account.key(),
-            &player_two_pot.key(),
-            player_two_lamports,
-        );
-
-        let third_place_pay_instruction = anchor_lang::solana_program::system_instruction::transfer(
-            &game_account.key(),
-            &player_three_pot.key(),
-            player_three_lamports,
-        );
-
-        anchor_lang::solana_program::program::invoke(
-            &owner_pay_instruction,
-            &[
-                game_account.to_account_info(),
-                owner_account.to_account_info(),
-            ],
-        )?;
-
-        anchor_lang::solana_program::program::invoke(
-            &first_place_pay_instruction,
-            &[
-                game_account.to_account_info(),
-                player_one_pot.to_account_info(),
-            ],
-        )?;
-
-        anchor_lang::solana_program::program::invoke(
-            &second_place_pay_instruction,
-            &[
-                game_account.to_account_info(),
-                player_two_pot.to_account_info(),
-            ],
-        )?;
-
-        anchor_lang::solana_program::program::invoke(
-            &third_place_pay_instruction,
-            &[
-                game_account.to_account_info(),
-                player_three_pot.to_account_info(),
-            ],
-        )?;
 
         emit!(PayoutEvent {
             game_name: game_account.title.clone(),
@@ -1881,6 +1843,27 @@ pub mod arcade {
         let arcade_state = &mut ctx.accounts.arcade_state;
 
         arcade_state.most_recent_game_pot_key = game_pot_account.next_game_pot;
+
+        Ok(())
+    }
+
+    pub fn refill_game_funds(ctx: Context<RefillGameFunds>, lamports: u64) -> ProgramResult {
+        let game_account = &mut ctx.accounts.game_account;
+        let payer = &mut ctx.accounts.payer;
+
+        let ix = anchor_lang::solana_program::system_instruction::transfer(
+            &payer.key(),
+            &game_account.key(),
+            lamports,
+        );
+
+        anchor_lang::solana_program::program::invoke(
+            &ix,
+            &[
+                payer.to_account_info(),
+                game_account.to_account_info(),
+            ],
+        )?;
 
         Ok(())
     }
@@ -2887,6 +2870,16 @@ pub struct CashOutMostRecentPot<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+/// Context used to add funds to a game account (could be used for donations or preventing games from going under rent exemption)
+pub struct RefillGameFunds<'info> {
+    #[account(mut)]
+    pub game_account: Account<'info, Game>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 #[account]
 /// The ArcadeState is the account that points to the most current game uploaded to the arcade.
 /// 
@@ -3119,4 +3112,16 @@ pub enum Errors {
 
     #[msg("Unable to get rent exempt amount")]
     CannotGetRentExemptAmount,
+
+    #[msg("Insufficient funds to payout")]
+    InsufficientFundsForPayout,
+
+    #[msg("Insufficient funds to payout to pot 1")]
+    InsufficientFundsPotOne,
+
+    #[msg("Insufficient funds to payout to pot 2")]
+    InsufficientFundsPotTwo,
+
+    #[msg("Insufficient funds to payout to pot 3")]
+    InsufficientFundsPotThree,
 }
